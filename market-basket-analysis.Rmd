@@ -1,0 +1,574 @@
+---
+title: "**Market Basket Analysis**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    code_folding: hide
+    theme: cosmo
+    highlight: tango
+---
+
+<center><img
+src="https://i.imgur.com/Opyn1vo.png">
+</center>
+
+# **Introduction**
+
+Hi! In this kernel we are going to use the **Apriori algorithm** to perform a **Market Basket Analysis**. A Market what? Is a technique used by large retailers to uncover associations between items.
+It works by looking for combinations of items that occur together frequently in transactions, providing information to understand the purchase behavior. The outcome of this type of technique is, 
+in simple terms, a set of **rules** that can be understood as **“if this, then that”**. For more information about these topics, please check in the following links: 
+
+* [Market Basket Analysis](https://en.wikipedia.org/wiki/Affinity_analysis)
+
+* [Apriori algorithm](https://en.wikipedia.org/wiki/Apriori_algorithm)
+
+* [Association rule learning](https://en.wikipedia.org/wiki/Association_rule_learning)
+
+First it's important to define the Apriori algorithm, including some statistical concepts  (support, confidence, lift and conviction) to select interesting rules. 
+Then we are going to use a data set containing more than 6.000 transactions from a bakery to apply the algorithm and find combinations of products that are bought together. Let's start!
+
+# **Association rules**
+ 
+The Apriori algorithm generates association rules for a given data set. An association rule implies that if an item A occurs, then item B also occurs with a certain probability. 
+Let's see an example, 
+
+<center>
+
+| Transaction   | Items                                       | 
+|:--------------|:--------------------------------------------|
+| t1            | {T-shirt, Trousers, Belt}                   | 
+| t2            | {T-shirt, Jacket}                           |   
+| t3            | {Jacket, Gloves}                            |  
+| t4            | {T-shirt, Trousers, Jacket}                 | 
+| t5            | {T-shirt, Trousers, Sneakers, Jacket, Belt} |   
+| t6            | {Trousers, Sneakers, Belt}                  |
+| t7            | {Trousers, Belt, Sneakers}                  | 
+
+</center>   
+
+In the table above we can see seven transactions from a clothing store. Each transaction shows items bought in that transaction. We can represent our items as an **item set** as follows:
+
+$$I=\{i_1, i_2,..., i_k\}$$
+
+In our case it corresponds to:
+
+$$I=\{T\text- shirt, Trousers, Belt, Jacket, Gloves, Sneakers\}$$
+
+A **transaction** is represented by the following expression:
+
+$$T=\{t_1, t_2,..., t_n\}$$
+
+For example,
+
+$$t_1=\{T\text- shirt, Trousers, Belt\}$$
+
+Then, an **association rule** is defined as an implication of the form:
+
+<center> $X \Rightarrow Y$, where $X \subset I$, $Y \subset I$ and $X \cap Y = 0$ </center>
+
+For example, 
+
+$$\{T\text- shirt, Trousers\} \Rightarrow \{Belt\}$$
+
+In the following sections we are going to define four metrics to measure the precision of a rule. 
+
+## Support
+
+Support is an indication of how frequently the item set appears in the data set.
+
+$$supp(X \Rightarrow Y)=\dfrac{|X \cup Y|}{n}$$
+
+In other words, it's the number of transactions with both $X$ and $Y$ divided by the total number of transactions. The rules are not useful for low support values. 
+Let's see different examples using the clothing store transactions from the previous table. 
+
+* $supp(T\text- shirt \Rightarrow Trousers)=\dfrac{3}{7}=43 \%$
+
+* $supp(Trousers \Rightarrow Belt)=\dfrac{4}{7}= 57 \%$
+
+* $supp(T\text- shirt \Rightarrow Belt)=\dfrac{2}{7}=28 \%$
+
+* $supp(\{T\text- shirt, Trousers\} \Rightarrow \{Belt\})=\dfrac{2}{7}=28 \%$
+
+## Confidence
+
+For a rule $X \Rightarrow Y$, confidence shows the percentage in which $Y$ is bought with $X$. It's an indication of how often the rule has been found to be true.
+
+$$conf(X \Rightarrow Y)=\dfrac{supp(X \cup Y)}{supp(X)}$$
+
+For example, the rule $T\text- shirt \Rightarrow Trousers$ has a confidence of 3/4, which means that for 75% of the transactions containing a t-shirt the rule is correct 
+(75% of the times a customer buys a t-shirt, trousers are bought as well). Three more examples:
+
+* $conf(Trousers \Rightarrow Belt)=\dfrac{4/7}{5/7}= 80 \%$
+
+* $conf(T\text- shirt \Rightarrow Belt)=\dfrac{2/7}{4/7}=50 \%$
+
+* $conf(\{T\text- shirt, Trousers\} \Rightarrow \{Belt\})=\dfrac{2/7}{3/7}=66 \%$
+
+## Lift
+
+The lift of a rule is the ratio of the observed support to that expected if $X$ and $Y$ were independent, and is defined as
+
+$$lift(X \Rightarrow Y)=\dfrac{supp(X \cup Y)}{supp(X)supp(Y) }$$
+
+Greater lift values indicate stronger associations. Let's see some examples:
+
+* $lift(T\text- shirt \Rightarrow Trousers)=\dfrac{3/7}{(4/7)(5/7)}= 1.05$
+
+* $lift(Trousers \Rightarrow Belt)=\dfrac{4/7}{(5/7)(4/7)}= 1.4$
+
+* $lift(T\text- shirt \Rightarrow Belt)=\dfrac{2/7}{(4/7)(4/7)}=0.875$
+
+* $lift(\{T\text- shirt, Trousers\} \Rightarrow \{Belt\})=\dfrac{2/7}{(3/7)(4/7)}=1.17$
+
+## Conviction
+
+The conviction of a rule is defined as 
+
+$$conv(X \Rightarrow Y)=\dfrac{1-supp(Y)}{1-conf(X \Rightarrow Y) }$$
+
+It can be interpreted as the ratio of the expected frequency that $X$ occurs without $Y$ if $X$  and $Y$ were independent divided by the observed frequency of incorrect predictions. 
+A high value means that the consequent depends strongly on the antecedent. Let's see some examples: 
+
+* $conv(T\text- shirt \Rightarrow Trousers)= \dfrac{1-5/7}{1-3/4}=1.14$
+
+* $conv(Trousers \Rightarrow Belt)= \dfrac{1-4/7}{1-4/5}=2.14$
+
+* $conv(T\text- shirt \Rightarrow Belt)=\dfrac{1-4/7}{1-1/2}=0.86$
+
+* $conv(\{T\text- shirt, Trousers\} \Rightarrow \{Belt\})=\dfrac{1-4/7}{1-2/3}=1.28$
+
+If you want more information about these measures, please check [here](https://en.wikipedia.org/wiki/Association_rule_learning).
+
+# **Loading Data** {.tabset .tabset-fade .tabset-pills}
+
+First we need to load some libraries and import our data. We can use the function `read.transactions()` from the `arules` package to create a `transactions` object. 
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(tidyverse)
+library(arules)
+library(arulesViz)
+library(knitr)
+library(gridExtra)
+library(lubridate)
+
+# Read the data
+trans <- read.transactions("../input/BreadBasket_DMS.csv", format="single", cols=c(3,4), sep=",", rm.duplicates=TRUE)
+```
+
+Let’s get an idea of what we’re working with.
+
+## Transaction object
+```{r message=FALSE, warning=FALSE}
+# Transaction object
+trans
+```
+
+## Summary
+```{r message=FALSE, warning=FALSE}
+# Summary
+summary(trans)
+```
+
+## Glimpse
+```{r message=FALSE, warning=FALSE}
+# Glimpse
+glimpse(trans)
+```
+
+## Structure
+```{r message=FALSE, warning=FALSE}
+# Structure
+str(trans)
+```
+
+# **Data Dictionary** 
+
+The data set contains 15.010 observations and the following columns,
+
+* `Date`. Categorical variable that tells us the date of the transactions (YYYY-MM-DD format). The column includes dates from 30/10/2016 to 09/04/2017.
+
+* `Time`. Categorical variable that tells us the time of the transactions (HH:MM:SS format).
+
+* `Transaction`. Quantitative variable that allows us to differentiate the transactions. The rows that share the same value in this field belong to the same transaction, that's why the data set has less transactions than observations. 
+
+* `Item`. Categorical variable containing the products. 
+
+# **Data Analysis**
+
+Before applying the Apriori algorithm on the data set, we are going to show some visualizations to learn more about the transactions. For example, we can generate an `itemFrequencyPlot()`
+to create an item Frequency Bar Plot to view the distribution of products. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Absolute Item Frequency Plot
+itemFrequencyPlot(trans, topN=15, type="absolute", col="wheat2",xlab="Item name", 
+                  ylab="Frequency (absolute)", main="Absolute Item Frequency Plot")
+```
+ 
+The `itemFrequencyPlot()` allows us to show the absolute or relative values. If absolute it will plot numeric frequencies of each item independently. 
+If relative it will plot how many times these items have appeared as compared to others, as it's shown in the following plot. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Relative Item Frequency Plot
+itemFrequencyPlot(trans, topN=15, type="relative", col="lightcyan2", xlab="Item name", 
+                  ylab="Frequency (relative)", main="Relative Item Frequency Plot")
+```
+   
+Coffee is the best-selling product by far, followed by bread and tea. Let's display some other visualizations describing the time distribution using the `ggplot()` function. 
+
+* Transactions per month
+
+* Transactions per weekday
+
+* Transactions per hour 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Load data 
+trans_csv <- read.csv("../input/BreadBasket_DMS.csv")
+
+# Transactions per month
+trans_csv %>%
+  mutate(Month=as.factor(month(Date))) %>%
+  group_by(Month) %>%
+  summarise(Transactions=n_distinct(Transaction)) %>%
+  ggplot(aes(x=Month, y=Transactions)) +
+  geom_bar(stat="identity", fill="mistyrose2", 
+           show.legend=FALSE, colour="black") +
+  geom_label(aes(label=Transactions)) +
+  labs(title="Transactions per month") +
+  theme_bw() 
+```
+
+The data set includes dates from 30/10/2016 to 09/04/2017, that's why we have so few transactions in October and April. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Transactions per weekday
+trans_csv %>%
+  mutate(WeekDay=as.factor(weekdays(as.Date(Date)))) %>%
+  group_by(WeekDay) %>%
+  summarise(Transactions=n_distinct(Transaction)) %>%
+  ggplot(aes(x=WeekDay, y=Transactions)) +
+  geom_bar(stat="identity", fill="peachpuff2", 
+           show.legend=FALSE, colour="black") +
+  geom_label(aes(label=Transactions)) +
+  labs(title="Transactions per weekday") +
+  scale_x_discrete(limits=c("Monday", "Tuesday", "Wednesday", "Thursday",
+                            "Friday", "Saturday", "Sunday")) +
+  theme_bw() 
+```
+
+As we can see, Saturday is the busiest day in the bakery. Conversely, Wednesday is the day with fewer transactions.
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Transactions per hour
+trans_csv %>%
+  mutate(Hour=as.factor(hour(hms(Time)))) %>%
+  group_by(Hour) %>%
+  summarise(Transactions=n_distinct(Transaction)) %>%
+  ggplot(aes(x=Hour, y=Transactions)) +
+  geom_bar(stat="identity", fill="steelblue1", show.legend=FALSE, colour="black") +
+  geom_label(aes(label=Transactions)) +
+  labs(title="Transactions per hour") +
+  theme_bw()
+```
+
+There’s not much to discuss with this visualization. The results are logical and expected.
+
+# **Apriori algorithm**
+
+## Choice of support and confidence
+
+The first step in order to create a set of association rules is to determine the optimal thresholds for support and confidence.  If we set these values too low, then the algorithm will take 
+longer to execute and we will get a lot of rules (most of them will not be useful). Then, what values do we choose? We can try different values of support and confidence
+and see graphically how many rules are generated for each combination.
+
+```{r results='hide', message=FALSE, warning=FALSE}
+# Support and confidence values
+supportLevels <- c(0.1, 0.05, 0.01, 0.005)
+confidenceLevels <- c(0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1)
+
+# Empty integers 
+rules_sup10 <- integer(length=9)
+rules_sup5 <- integer(length=9)
+rules_sup1 <- integer(length=9)
+rules_sup0.5 <- integer(length=9)
+
+# Apriori algorithm with a support level of 10%
+for (i in 1:length(confidenceLevels)) {
+  
+  rules_sup10[i] <- length(apriori(trans, parameter=list(sup=supportLevels[1], 
+                                   conf=confidenceLevels[i], target="rules")))
+  
+}
+
+# Apriori algorithm with a support level of 5%
+for (i in 1:length(confidenceLevels)){
+  
+  rules_sup5[i] <- length(apriori(trans, parameter=list(sup=supportLevels[2], 
+                                  conf=confidenceLevels[i], target="rules")))
+  
+}
+
+# Apriori algorithm with a support level of 1%
+for (i in 1:length(confidenceLevels)){
+  
+  rules_sup1[i] <- length(apriori(trans, parameter=list(sup=supportLevels[3], 
+                                  conf=confidenceLevels[i], target="rules")))
+  
+}
+
+# Apriori algorithm with a support level of 0.5%
+for (i in 1:length(confidenceLevels)){
+  
+  rules_sup0.5[i] <- length(apriori(trans, parameter=list(sup=supportLevels[4], 
+                                    conf=confidenceLevels[i], target="rules")))
+  
+}
+```
+
+In the following graphs we can see the number of rules generated with a support level of 10%, 5%, 1% and 0.5%. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Number of rules found with a support level of 10%
+plot1 <- qplot(confidenceLevels, rules_sup10, geom=c("point", "line"), 
+               xlab="Confidence level", ylab="Number of rules found", 
+               main="Apriori with a support level of 10%") +
+  theme_bw()
+
+# Number of rules found with a support level of 5%
+plot2 <- qplot(confidenceLevels, rules_sup5, geom=c("point", "line"), 
+               xlab="Confidence level", ylab="Number of rules found", 
+               main="Apriori with a support level of 5%") + 
+  scale_y_continuous(breaks=seq(0, 10, 2)) +
+  theme_bw()
+
+# Number of rules found with a support level of 1%
+plot3 <- qplot(confidenceLevels, rules_sup1, geom=c("point", "line"), 
+               xlab="Confidence level", ylab="Number of rules found", 
+               main="Apriori with a support level of 1%") + 
+  scale_y_continuous(breaks=seq(0, 50, 10)) +
+  theme_bw()
+
+# Number of rules found with a support level of 0.5%
+plot4 <- qplot(confidenceLevels, rules_sup0.5, geom=c("point", "line"), 
+               xlab="Confidence level", ylab="Number of rules found", 
+               main="Apriori with a support level of 0.5%") + 
+  scale_y_continuous(breaks=seq(0, 130, 20)) +
+  theme_bw()
+
+# Subplot
+grid.arrange(plot1, plot2, plot3, plot4, ncol=2)
+```
+  
+We can join the four lines to improve the visualization.
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Data frame
+num_rules <- data.frame(rules_sup10, rules_sup5, rules_sup1, rules_sup0.5, confidenceLevels)
+
+# Number of rules found with a support level of 10%, 5%, 1% and 0.5%
+ggplot(data=num_rules, aes(x=confidenceLevels)) +
+  
+  # Plot line and points (support level of 10%)
+  geom_line(aes(y=rules_sup10, colour="Support level of 10%")) + 
+  geom_point(aes(y=rules_sup10, colour="Support level of 10%")) +
+  
+  # Plot line and points (support level of 5%)
+  geom_line(aes(y=rules_sup5, colour="Support level of 5%")) +
+  geom_point(aes(y=rules_sup5, colour="Support level of 5%")) +
+  
+  # Plot line and points (support level of 1%)
+  geom_line(aes(y=rules_sup1, colour="Support level of 1%")) + 
+  geom_point(aes(y=rules_sup1, colour="Support level of 1%")) +
+  
+  # Plot line and points (support level of 0.5%)
+  geom_line(aes(y=rules_sup0.5, colour="Support level of 0.5%")) +
+  geom_point(aes(y=rules_sup0.5, colour="Support level of 0.5%")) +
+  
+  # Labs and theme
+  labs(x="Confidence levels", y="Number of rules found", 
+       title="Apriori algorithm with different support levels") +
+  theme_bw() +
+  theme(legend.title=element_blank())
+```
+  
+Let's analyze the results,
+
+* **Support level of 10%**. We only identify a few rules with very low confidence levels. This means that there are no relatively frequent associations in our data set. We can't choose this value, the resulting rules are unrepresentative.
+
+* **Support level of 5%**. We only identify a rule with a confidence of at least 50%. It seems that we have to look for support levels below 5% to obtain a greater number of rules with a reasonable confidence. 
+
+* **Support level of 1%**. We started to get dozens of rules, of which 13 have a confidence of at least 50%.
+
+* **Support level of 0.5%**. Too many rules to analyze!
+
+To sum up, we are going to use a support level of 1% and a confidence level of 50%. 
+
+## Execution
+
+Let's execute the Apriori algorithm with the values obtained in the previous section.
+
+```{r results='hide', message=FALSE, warning=FALSE}
+# Apriori algorithm execution with a support level of 1% and a confidence level of 50%
+rules_sup1_conf50 <- apriori(trans, parameter=list(sup=supportLevels[3], 
+                             conf=confidenceLevels[5], target="rules"))
+```
+
+The generated association rules are the following,
+
+```{r message=FALSE, warning=FALSE}
+# Association rules
+inspect(rules_sup1_conf50)
+```
+
+We can also create an HTML table widget using the `inspectDT()` function from the `aruslesViz` package. Rules can be interactively filtered and sorted.
+
+How do we interpret these rules? 
+
+* 52% of the customers who bought a hot chocolate algo bought a coffee.
+
+* 63% of the customers who bought a spanish brunch also bought a coffee.
+
+* 73% of the customers who bought a toast also bought a coffee.
+
+And so on. It seems that in this bakery there are many coffee lovers!
+
+## Visualize association rules
+
+We are going to use the `arulesViz` package to create the visualizations. Let's begin with a simple scatter plot with different measures of interestingness on the axes (lift and support) 
+and a third measure (confidence) represented by the color of the points. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Scatter plot
+plot(rules_sup1_conf50, measure=c("support","lift"), shading="confidence")
+```
+ 
+The following visualization represents the rules as a graph with items as labeled vertices, and rules represented as vertices connected to items using arrows.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Graph
+plot(rules_sup1_conf50, method="graph")
+```
+ 
+We can also change the graph layout.  
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Graph
+plot(rules_sup1_conf50, method="graph", control=list(layout=igraph::in_circle()))
+```
+
+What else can we do? We can represent the rules as a grouped matrix-based visualization. The support and lift measures are represented by the size and color of the ballons, respectively. 
+In this case it's not a very useful visualization, since we only have coffe on the right-hand-side of the rules. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Grouped matrix plot
+plot(rules_sup1_conf50, method="grouped")
+```
+ 
+There's an awesome function called `ruleExplorer()` that explores association rules using interactive manipulations and visualization using shiny. Unfortunately, R Markdown still
+doesn't support shiny app objects. 
+
+## Another execution {.tabset .tabset-fade .tabset-pills}
+
+We have executed the Apriori algorithm with the appropriate support and confidence values. What happens if we execute it with low values? How do the visualizations change? 
+Let's try with a support level of 0.5% and a confidence level of 10%.
+
+```{r results='hide', message=FALSE, warning=FALSE}
+# Apriori algorithm execution with a support level of 0.5% and a confidence level of 10%
+rules_sup0.5_conf10 <- apriori(trans, parameter=list(sup=supportLevels[4], conf=confidenceLevels[9], target="rules"))
+```
+
+It's impossible to analyze these visualizations! For larger rule sets visual analysis becomes difficult. Furthermore, most of the rules are useless. 
+That's why we have to carefully select the right values of support and confidence. 
+
+### Graph
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Graph
+plot(rules_sup0.5_conf10, method="graph", control=list(layout=igraph::in_circle()))
+```
+  
+### Parallel coordinates plot
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Parallel coordinates plot
+plot(rules_sup0.5_conf10, method="paracoord", control=list(reorder=TRUE))
+```
+  
+### Grouped matrix plot
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Grouped matrix plot
+plot(rules_sup0.5_conf10, method="grouped")
+```
+
+### Scatter plot
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Scatter plot
+plot(rules_sup0.5_conf10, measure=c("support","lift"), shading="confidence", jitter=0)
+```
+
+# **Exercises**
+
+In this section you can test the concepts learned during this kernel by answering the following questionnaire. Good luck!
+
+* Give an example where you can apply the Apriori algorithm. 
+
+* Calculate the support of the rule $Trousers \Rightarrow Jacket$ using the clothing store transactions. Interpret the result.
+
+* Calculate the confidence of the rule $T\text- shirt \Rightarrow Jacket$ using the clothing store transactions. Interpret the result.
+
+* Calculate the lift of the rule $Trousers \Rightarrow Sneakers$ using the clothing store transactions. Interpret the result. 
+
+* Calculate the conviction of the rule $T\text- shirt \Rightarrow Belt$ using the clothing store transactions. Interpret the result.
+
+* Calculate the four metrics (support, confidence, lift and conviction) of the rule  $\{T\text- shirt, Trousers\} \Rightarrow \{Jacket\}$ using the clothing store transactions. Interpret the results.
+
+* What happens when we decrease the support level? Why?
+
+* What happens when we increase the conficence level? Why?
+
+* How many rules are generated with a support level of 0.5% and a confidence level of 20%? (you can use the previous visualizations)
+
+* Using the previous data set, execute the Apriori algorithm with a support level of 5% and a confidence level of 10%. Are the rules interesting? Why?
+
+* Prove the functions `ruleExplorer()` and `inspectDT()` from the package `arulesViz` on your RStudio environment. 
+
+* What recommendations would you give to the owner of the bakery?
+
+Have you passed the test?
+
+# **Summary** 
+
+In this kernel we have learned about the Apriori algorithm, one of the most frequently used algorithms in data mining. We have reviewed some statistical concepts (support, confidence, 
+lift and conviction) to select interesting rules, we have chosen the appropriate values to execute the algorithm and finally we have visualized the resulting association rules.
+
+And that’s it! It has been a pleasure to make this kernel, I have learned a lot! Thank you for reading and if you like it, please upvote it!
+    
+By the way, if you want to view more kernels about other machine learning algorithms or statistical techniques, you can check the following links:
+
+* [Image Compression using PCA](https://www.kaggle.com/xvivancos/image-compression-using-pca)
+
+* [k-Nearest Neighbors algorithm (k-NN) in the Iris data set](https://www.kaggle.com/xvivancos/knn-in-the-iris-data-set)
+
+* [Clustering wines with k-means](https://www.kaggle.com/xvivancos/tutorial-clustering-wines-with-k-means)
+
+# **Citations for used packages**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Michael Hahsler, Christian Buchta, Bettina Gruen and Kurt Hornik (2018). arules: Mining Association Rules and Frequent Itemsets. R package version 1.6-1. https://CRAN.R-project.org/package=arules
+
+Michael Hahsler, Bettina Gruen and Kurt Hornik (2005), arules - A Computational Environment for Mining Association Rules and Frequent Item Sets.  Journal of Statistical Software 14/15.  URL: http://dx.doi.org/10.18637/jss.v014.i15.
+
+Michael Hahsler, Sudheer Chelluboina, Kurt Hornik, and Christian Buchta (2011), The arules R-package ecosystem: Analyzing interesting
+patterns from large transaction datasets.  Journal of Machine Learning Research, 12:1977--1981.  URL: http://jmlr.csail.mit.edu/papers/v12/hahsler11a.html.
+  
+Michael Hahsler (2018). arulesViz: Visualizing Association Rules and Frequent Itemsets. R package version 1.3-1. https://CRAN.R-project.org/package=arulesViz
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, editors, Implementing Reproducible Computational Research. Chapman and Hall/CRC. ISBN 978-1466561595
+
+Baptiste Auguie (2017). gridExtra: Miscellaneous Functions for "Grid" Graphics. R package version 2.3.
+https://CRAN.R-project.org/package=gridExtra
