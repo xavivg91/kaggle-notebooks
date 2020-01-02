@@ -1,0 +1,691 @@
+---
+title: "**Discovering Barcelona Part II**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: no
+    code_folding: hide
+    theme: cosmo
+    highlight: tango
+---
+
+<center><img
+src="https://i.imgur.com/kohC9cx.png">
+</center>
+
+# **Introduction**
+
+Hi! In this kernel we are going to continue analyzing other topics of the city of Barcelona: public transport, environment and accidents. You can check the first part (Discovering Barcelona) [here](https://www.kaggle.com/xvivancos/discovering-barcelona). Like in the previous kernel, we are going to use data sets from the [Open Data BCN](http://opendata-ajuntament.barcelona.cat/en/) platform. 
+
+This portal contains more than 400 data sets classified in 5 main topics: Administration, Urban environment, Population, Territory, Economy and Business which are also divided in sub topics. You can consult the data sets catalogue [here](http://opendata-ajuntament.barcelona.cat/data/en/dataset). Let’s start!
+
+# **Data sets used**
+
+* [Public transports](http://opendata-ajuntament.barcelona.cat/data/en/dataset/transports/resource/e07dec0d-4aeb-40f3-b987-e1f35e088ce2). Public transports (underground, Renfe, FGC, funicular, cable car, tramcar, etc) of the city of Barcelona.
+
+* [Bus stops](http://opendata-ajuntament.barcelona.cat/data/en/dataset/estacions-bus). Bus stops, day bus stops, night bus stops, airport bus stops of the city of Barcelona.
+
+* [Air quality measure stations](http://opendata-ajuntament.barcelona.cat/data/en/dataset/qualitat-aire-estacions-bcn). Main characteristics of the air quality measure stations of the city of Barcelona.
+
+* [Air quality](http://opendata-ajuntament.barcelona.cat/data/en/dataset/qualitat-aire-detall-bcn). Mesure data are showed of $O_3$ (tropospheric Ozone), $NO_2$ (Nitrogen dioxide) and $PM_{10}$ (Suspended particles).
+
+* [Accidents managed by the local police](http://opendata-ajuntament.barcelona.cat/data/en/dataset/accidents-gu-bcn). List of accidents handled by the local police in the city of Barcelona.
+
+# **Loading Data** {.tabset}
+
+First we need to load some libraries and read the data sets.
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(tidyverse)
+library(leaflet)
+library(leaflet.extras)
+library(gridExtra)
+library(knitr)
+
+# Read the data 
+transport <- read.csv("../input/transports.csv", sep=",", fileEncoding="UTF-8")
+bus_stops <- read.csv("../input/bus_stops.csv", sep=",", fileEncoding="UTF-8")
+air_quality <- read.csv("../input/air_quality_Nov2017.csv", sep=",", fileEncoding="UTF-8")
+air_stations <- read.csv("../input/air_stations_Nov2017.csv", sep=",", fileEncoding="UTF-8")
+accidents <- read.csv("../input/accidents_2017.csv", sep=",", fileEncoding="UTF-8")
+```
+
+Let’s get an idea of what we’re working with.
+
+## Public transports {-}
+```{r}
+# Structure
+str(transport)
+```
+
+## Bus stops {-}
+```{r}
+# Structure
+str(bus_stops)
+```
+
+## Air quality {-}
+```{r}
+# Structure
+str(air_quality)
+```
+
+## Air quality measure stations {-}
+```{r}
+# Structure
+str(air_stations)
+```
+
+## Accidents {-}
+```{r}
+# Structure
+str(accidents)
+```
+
+# **Data Analysis**
+
+## Transport
+
+<style>
+.html-widget {
+    margin: auto;
+}
+</style>
+
+There are many options if you want to move around Barcelona. Let's describe some of them:
+
+* **Underground or metro** (TMB and FGC). Probably the most used transport. It's an extensive network of rapid transit electrified railway lines that run mostly underground in central Barcelona and into the city's suburbs. 
+The network is operated by two separate companies: [Transports Metropolitans de Barcelona](https://en.wikipedia.org/wiki/Transports_Metropolitans_de_Barcelona) (TMB) and [Ferrocarrils de la Generalitat de Catalunya](https://en.wikipedia.org/wiki/Ferrocarrils_de_la_Generalitat_de_Catalunya) (FGC).
+Some data: the network consists of 12 lines, numbered L1 to L12, covering 144.3 kilometres of route and 180 stations.
+
+* **Railway** (FGC). Railway company which operates several unconnected lines in Catalonia, Spain. The lines operated include metro and commuter lines in and around the city of Barcelona, tourist mountain railways, and rural railway lines. 
+Technical data: 19 lines, covering 271 kilometres of route and 97 stations. 
+
+* **RENFE**. It's the state-owned railway company in Spain. RENFE operates both local and International trains. In Spain, it's train network is made up of 15.000 km of rail. 
+
+* **Tram** (TMB). Opened in 2004, this metropolitan transport network has a fleet of 41 trams, 29 kilometres of route and six lines. 
+
+<center><img
+src="https://i.imgur.com/7IPJfdn.png">
+</center>
+
+The rest of transports are used mostly by tourists (funicular and cableway, for example), and not so much by Barcelona citizens. Now that we have described some of the most important transports, we can place place them on a map using the `leaflet` package.  
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Map
+leaflet() %>%
+  
+  # addTiles()
+  addTiles(group="OSM") %>%
+  addProviderTiles("OpenStreetMap.BlackAndWhite", group="BlackAndWhite") %>%
+  addProviderTiles("Esri", group="Esri") %>%
+  
+  # Extras
+  # addSearchOSM() %>%
+  # addReverseSearchOSM() %>%
+  addResetMapButton() %>%
+ 
+  # Add marker layer for each sector with corresponding group name
+  addCircleMarkers(data=transport %>% filter(Transport=="Underground"), color="blue", 
+                   group="Underground", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Station)) %>%
+                   
+  addCircleMarkers(data=transport %>% filter(Transport=="Tram"), color="yellow", 
+                   group="Tram", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Station)) %>%
+                   
+  addCircleMarkers(data=transport %>% filter(Transport=="Railway (FGC)"), color="green", 
+                   group="Railway (FGC)", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Station)) %>%
+                   
+  addCircleMarkers(data=transport %>% filter(Transport=="Maritime station"), color="cyan", 
+                   group="Maritime station", 
+                   radius=5, popup=~paste0("<b>", Transport,"</b>","<br/>", Station)) %>%
+                   
+  addCircleMarkers(data=transport %>% filter(Transport=="Cableway"), color="pink", 
+                   group="Cableway", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Station)) %>%
+                   
+  addCircleMarkers(data=transport %>% filter(Transport=="RENFE"), color="red", 
+                   group="RENFE", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Station)) %>%
+                   
+  addCircleMarkers(data=transport %>% filter(Transport=="Airport train"), color="orange", 
+                   group="Airport train", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Station)) %>%
+                   
+  addCircleMarkers(data=transport %>% filter(Transport=="Funicular"), color="purple", 
+                   group="Funicular", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Station)) %>%
+  
+  # Add layer controls for base and overlay groups
+  addLayersControl(overlayGroups=c("Underground", "Cableway", "Funicular", "Maritime station",
+                                   "Railway (FGC)", "RENFE", "Airport train", "Tram"),
+                   baseGroups=c("OSM", "BlackAndWhite", "Esri")) %>%
+  
+  # Add legend
+  addLegend(position="bottomleft",
+            colors=c("blue", "pink", "purple", "cyan", "green", "red", "orange", "yellow"), 
+            labels=c("Underground", "Cableway", "Funicular", "Maritime station",
+                     "Railway (FGC)", "RENFE", "Airport train", "Tram"))
+```
+
+Each single point on the map corresponds to a station. The data set lists every subway entry (the same underground or railway station can have several entries), that's why there are groups of blue or green dots close to each other. You can filter by transport and change the map style in the upper right corner option. Of course, you can also zoom to visualize the map in more detail. There's a lot of underground stations! 
+
+How many stations does each district have? Let's check it!
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Stations by district
+plot1 <- transport %>%
+  filter(District.Name!="") %>%
+  count(District.Name, Transport) %>% 
+  ggplot(aes(x=reorder(District.Name, n, sum), y=n, fill=Transport)) + 
+  geom_col(position=position_stack(reverse=FALSE),  colour="black") + 
+  scale_fill_manual(values=c("sienna1", "pink", "slateblue1", "lightcyan1", 
+                             "darkolivegreen1", "firebrick1", "goldenrod2", "dodgerblue1")) +
+  labs(x="District name", y="Stations", title="Stations by district") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank()) +
+  coord_flip()
+
+# Stations 
+plot2 <- transport %>%
+  filter(District.Name!="") %>%
+  count(Transport) %>%
+  ggplot(aes(x=factor(1), y=n, fill=Transport)) + 
+  geom_bar(stat="identity", width=1, size=1, color="white", show.legend=FALSE) +
+  coord_polar(theta="y") +
+  labs(title="Stations") +
+  scale_fill_manual(values=c("sienna1", "pink", "slateblue1", "lightcyan1", 
+                             "darkolivegreen1", "firebrick1", "goldenrod2", "dodgerblue1")) +
+  theme_void() +
+  theme(plot.title=element_text(hjust=0.5))
+
+# Subplot
+grid.arrange(plot1, plot2, layout_matrix=rbind(c(1, 1, 2),
+                                               c(1, 1, 2)))
+```
+
+Eixample is the district with the most stations in Barcelona. Conversely, Gràcia is the district with fewer stations. We can see how the most predominant transport is the metro.
+
+Let's visualize now the bus stops (day bus stops, night bus stops and airport bus stops) of the city of Barcelona. We also display the three main bus stations (in green): Estació d'Autobusos Barcelona Sants, Estació d'Autobusos Barcelona Nord and Estació d'Autobusos Barcelona Fabra i Puig. These main stations mainly operate routes to the rest of Spain.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Map
+leaflet() %>%
+  
+  # addTiles()
+  addTiles(group="OSM") %>%
+  addProviderTiles("OpenStreetMap.BlackAndWhite", group="BlackAndWhite") %>%
+  addProviderTiles("Esri", group="Esri") %>%
+  
+  # Extras
+  # addSearchOSM() %>%
+  # addReverseSearchOSM() %>%
+  addResetMapButton() %>%
+ 
+  # Add marker layer for each sector with corresponding group name
+  addCircleMarkers(data=bus_stops %>% filter(Transport=="Day bus stop"), color="yellow", 
+                   group="Day bus stop", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Bus.Stop)) %>%
+                   
+  addCircleMarkers(data=bus_stops %>% filter(Transport=="Night bus stop"), color="blue", 
+                   group="Night bus stop", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Bus.Stop)) %>%
+                   
+  addCircleMarkers(data=bus_stops %>% filter(Transport=="Airport bus stop"), color="red", 
+                   group="Airport bus stop", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Bus.Stop)) %>%
+                   
+  addCircleMarkers(data=bus_stops %>% filter(Transport=="Bus station"), color="green", 
+                   group="Bus station", radius=5, 
+                   popup=~paste0("<b>", Transport,"</b>","<br/>", Bus.Stop)) %>%
+  
+  # Add layer controls for base and overlay groups
+  addLayersControl(overlayGroups=c("Day bus stop", "Night bus stop", "Airport bus stop", "Bus station"),
+                   baseGroups=c("OSM", "BlackAndWhite", "Esri")) %>%
+  
+  # Add legend
+  addLegend(position="bottomleft",
+            colors=c("yellow", "blue", "red", "green"), 
+            labels=c("Day bus stop", "Night bus stop", "Airport bus stop", "Bus station"))
+```
+
+We have showed the bus stops in another visualization in order to not overload the same map with excessive points. Looking at the map, it seems that
+wherever you are, you will always have a stop nearby, great!
+
+Let's see now the bus stops by district. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Bus stops by district
+plot3 <- bus_stops %>%
+  filter(District.Name!="") %>%
+  count(District.Name, Transport) %>% 
+  ggplot(aes(x=reorder(District.Name, n, sum), y=n, fill=Transport)) + 
+  geom_col(position=position_stack(reverse=FALSE),  colour="black") + 
+  scale_fill_manual(values=c("firebrick1", "darkolivegreen1",
+                             "goldenrod2", "slateblue1")) +
+  labs(x="District name", y="Bus stops", title="Bus stops by district") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank()) +
+  coord_flip()
+
+# Bus stops (%)
+plot4 <- bus_stops %>%
+  filter(District.Name!="") %>%
+  count(Transport) %>%
+  mutate(Percentage=paste0(round(n/sum(n)*100, 2), "%")) %>%
+  ggplot(aes(x=factor(1), y=n, fill=Transport)) + 
+  geom_bar(stat="identity", width=1, size=1, color="white", show.legend=FALSE) +
+  geom_text(aes(x=c(1, 1.2, 1, 1), label=Percentage), position=position_stack(vjust=0.5)) +
+  coord_polar(theta="y") +
+  labs(title="Bus stops (%)") +
+  scale_fill_manual(values=c("firebrick1", "darkolivegreen1",
+                             "goldenrod2", "slateblue1")) +
+  theme_void() +
+  theme(plot.title=element_text(hjust=0.5))
+
+# Subplot
+grid.arrange(plot3, plot4, layout_matrix=rbind(c(1, 1, 2),
+                                               c(1, 1, 2)))
+```
+
+Analyzing the two bar plots we can see how Sarrià-Sant Gervarsi and Eixample are the districts with the most public transport connections. In general, it's easy to move around Barcelona and go anywhere in a short time. However, the price and safety of public transport is quite improvable (last week my wallet was stolen on the subway!)
+
+## Environment 
+
+In this section we are going to analyze air quality data of the city of Barcelona using the most common air pollutants: $O_3$ (tropospheric Ozone), $NO_2$ (Nitrogen dioxide) and $PM_{10}$ (Suspended particles). Some context information (**Reference**: https://airnow.gov):
+
+* **Ozone** ($O_3$). At ground level ozone can cause serious health problems, including breathing difficulty, asthma attacks, lung damage, and early death. This pollutant come from sources such as vehicles, industries, power plants, and products such as solvents and paints.
+
+* **Nitrogen dioxide** ($NO_2$) comes from vehicles, power plants, industrial emissions and off-road sources such as construction, lawn and gardening equipment. All of these sources burn fossil fuels. 
+Scientific evidence links short-term $NO_2$ exposures, ranging from 30 minutes to 24 hours, with adverse respiratory effects including airway inflammation in healthy people and increased respiratory symptoms in people with asthma.
+
+* **Suspended particles** ($PM_{10}$) comes from power plants, industrial processes, vehicle tailpipes, woodstoves, wildfires, grinding operacions, road dust and some agricultural operations. 
+Particle pollution is linked to a number of health problems, including coughing, wheezing, reduced lung function, asthma attacks, heart attacks and strokes. It also is linked to early death.
+
+We are going to use a data set containing measures from different air quality stations during November 2018. Let's start with the data distribution using a histogram and a density plot. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Density plot - Air quality measures (November 2018)
+plot5 <- air_quality %>%
+  gather(Measure, Value, c(7, 10, 13)) %>%
+  ggplot(aes(x=Value, fill=Measure)) +
+  geom_density(alpha=0.5, show.legend=FALSE) +
+  theme_bw() +
+  labs(x=expression(mu*g/m^3), y="Density", 
+       title="Density plot - Air quality measures (Nov. 2018)")
+
+# Histogram - Air quality measures (November 2018)
+plot6 <- air_quality %>%
+  gather(Measure, Value, c(7, 10, 13)) %>%
+  ggplot(aes(x=Value, fill=Measure)) +
+  geom_histogram(stat="count") +
+  labs(x=expression(mu*g/m^3), y="Count", 
+       title="Histogram - Air quality measures (Nov. 2018)") +
+  theme_bw() + 
+  theme(legend.title=element_blank(),
+        legend.justification=c(0.99, 0.99), legend.position=c(0.99, 0.99)) +
+  scale_fill_discrete(breaks=c("NO2.Value", "O3.Value", "PM10.Value"),
+                         labels=c(expression(NO[2]~"1h"~(mu*g/m^3)), 
+                                  expression(O[3]~"1h"~(mu*g/m^3)),
+                                  expression(PM[10]~"24h"~(mu*g/m^3))))
+
+# Subplot
+grid.arrange(plot5, plot6, ncol=1)
+```
+
+Fortunately, the data is concentrated in the left part of the graph (low values). What ranges of values are considered harmful to human health? Let's use the following table from the Generalitat de Catalunya portal (**Reference** [here](http://mediambient.gencat.cat/es/05_ambits_dactuacio/atmosfera/qualitat_de_laire/avaluacio/icqa/que_es_lindex_catala_de_qualitat_de_laire/index.html)) to discover it!
+
+<center>
+
+| Quality         | $O_3\; 1h\; (\mu g/m^3)$ | $PM_{10}\; 24h\; (\mu g/m^3)$ | $NO_2\; 1h\; (\mu g/m^3)$ |
+|-----------------|--------------------------|-------------------------------|---------------------------|
+| Good            |          $0-110$         |      $0-35$                   |    $0-90$                 |
+| Moderate        |          $111-180$       |      $36-50$                  |    $91-200$               |
+| Unhealthy       |          $181-240$       |      $51-75$                  |    $201-400$              |
+| Very unhealthy  |          $>241$          |      $>76$                    |    $>401$                 |
+
+</center>
+
+We are going to show the histograms again, this time with the ranges of the previous table.
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Histogram - Nitrogen Dioxide NO2 (November 2018)
+plot7 <- air_quality %>%
+  gather(Measure, Value, c(7, 10, 13)) %>%
+  filter(Measure=="NO2.Value") %>%
+  ggplot(aes(x=Value)) +
+  geom_rect(aes(xmin=0, xmax=90, ymin=-Inf, ymax=Inf), fill="darkolivegreen3", alpha=0.01) +
+  annotate('text', x=70, y=100, label="Good~quality", parse=TRUE, size=2.5) +
+  annotate('text', x=70, y=90, label=expression("0-90"~mu*g/m^3), parse=TRUE, size=2.5) +
+  geom_rect(aes(xmin=90, xmax=120, ymin=-Inf, ymax=Inf), fill="goldenrod3", alpha=0.01) +
+  annotate('text', x=105, y=100, label="Moderate~quality", parse=TRUE, size=2.5) +
+  annotate('text', x=105, y=90, label=expression("91-200"~mu*g/m^3), parse=TRUE, size=2.5) +
+  geom_histogram(stat="count") +
+  labs(x=expression(mu*g/m^3), y="Count", title=expression(Nitrogen~Dioxide~NO[2]~(Nov.~2018))) +
+  theme_bw() 
+
+# Histogram - Ozone O3 (November 2018)
+plot8 <- air_quality %>%
+  gather(Measure, Value, c(7, 10, 13)) %>%
+  filter(Measure=="O3.Value") %>%
+  ggplot(aes(x=Value)) +
+  geom_rect(aes(xmin=0, xmax=100, ymin=-Inf, ymax=Inf), fill="darkolivegreen3", alpha=0.01) +
+  annotate('text', x=70, y=210, label="Good~quality", parse=TRUE, size=2.5) +
+  annotate('text', x=70, y=187, label=expression("0-100"~mu*g/m^3), parse=TRUE, size=2.5) +
+  geom_histogram(stat="count") +
+  labs(x=expression(mu*g/m^3), y="Count", title=expression(Ozone~O[3]~(Nov.~2018))) +
+  theme_bw() 
+
+# Histogram - Particulate Matter PM10 (November 2018)
+plot9 <- air_quality %>%
+  gather(Measure, Value, c(7, 10, 13)) %>%
+  filter(Measure=="PM10.Value") %>%
+  ggplot(aes(x=Value)) +
+  geom_rect(aes(xmin=0, xmax=35, ymin=-Inf, ymax=Inf), fill="darkolivegreen3", alpha=0.01) +
+  annotate('text', x=27, y=200, label="Good~quality", parse=TRUE, size=2.5) +
+  annotate('text', x=27, y=180, label=expression("0-35"~mu*g/m^3), parse=TRUE, size=2.5) +
+  geom_rect(aes(xmin=35, xmax=50, ymin=-Inf, ymax=Inf), fill="goldenrod3", alpha=0.01) +
+  annotate('text', x=42, y=200, label="Moderate~quality", parse=TRUE, size=2.5) +
+  annotate('text', x=42, y=180, label=expression("36-50"~mu*g/m^3), parse=TRUE, size=2.5) +
+  geom_histogram(stat="count") +
+  labs(x=expression(mu*g/m^3), y="Count", title=expression(Particulate~Matter~PM[10]~(Nov.~2018))) +
+  theme_bw() 
+
+# Subplot
+grid.arrange(plot7, plot8, plot9, layout_matrix=rbind(c(1,1,2,2),
+                                                      c(NA,3,3,NA)))
+```
+
+Not bad! No health impacts are expected when air values are in the green zone. 
+
+We can also calculate the pollutant average values for each air quality station. But first, how many air quality stations are there and where are they located? We show them in the following map.
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Map
+leaflet() %>%
+  
+  # addTiles()
+  addTiles(group="OSM") %>%
+  addProviderTiles("OpenStreetMap.BlackAndWhite", group="BlackAndWhite") %>%
+  addProviderTiles("Esri", group="Esri") %>%
+  
+  # Extras
+  # addSearchOSM() %>%
+  # addReverseSearchOSM() %>%
+  addResetMapButton() %>%
+ 
+  # Add marker layer for each sector with corresponding group name
+  addMarkers(data=air_stations, popup=~paste0("<b>", Station,"</b>","<br/>", Ubication)) %>%
+  
+   # Add layer controls for base groups
+  addLayersControl(baseGroups=c("OSM", "BlackAndWhite", "Esri"))
+```
+
+Barcelona has eight air quality stations distributed in different districts. Let's compute the pollutant mean values for each air quality station and visualize them using a bar plot. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Mean values by station (November 2018)
+air_quality %>%
+  group_by(Station) %>%
+  summarise(Mean.NO2=mean(na.omit(NO2.Value)),
+            Mean.O3=mean(na.omit(O3.Value)),
+            Mean.PM10=mean(na.omit(PM10.Value))) %>%
+  gather(Measure, Value, 2:4) %>%
+  mutate(Station=factor(Station, levels=c("Barcelona - Sants", "Barcelona - Poblenou",
+                                          "Barcelona - Ciutadella", "Barcelona - Palau Reial",
+                                          "Barcelona - Vall Hebron", "Barcelona - Observ Fabra", 
+                                          "Barcelona - Gràcia", "Barcelona - Eixample"))) %>%
+  ggplot(aes(x=Station, y=Value, fill=Measure)) +
+  geom_col(position=position_stack(reverse=FALSE),  colour="black") + 
+  geom_text(aes(label=round(Value, digits=2), group=Measure), position=position_stack(vjust=0.5)) +
+  theme_bw() +
+  coord_flip() +
+  labs(x="Station", y=expression(mu*g/m^3), title="Mean values by station (Nov. 2018)") +
+  theme(legend.title=element_blank(),
+        legend.position="bottom") +
+  scale_fill_discrete(breaks=c("Mean.NO2", "Mean.O3", "Mean.PM10"),
+                      labels=c(expression(NO[2]), 
+                               expression(O[3]),
+                               expression(PM[10])))
+```
+
+As we can see, not all stations measure the three pollutants. The Barcelona - Sants station, for example, only measures nitrogen dioxide.
+
+## Accidents
+
+In this final section we are going to analyze a list of traffic accidents handled by the local police in the city of Barcelona during 2017. It incorporates the number of injuries by severity, the number of vehicles and the point of impact. Let's place the accident locations on a map.
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Map
+leaflet() %>%
+  
+  # addTiles()
+  addTiles(group="OSM") %>%
+  addProviderTiles("OpenStreetMap.BlackAndWhite", group="BlackAndWhite") %>%
+  addProviderTiles("Esri", group="Esri") %>%
+  
+  # Extras
+  # addSearchOSM() %>%
+  # addReverseSearchOSM() %>%
+  addResetMapButton() %>%
+ 
+  # Add marker layer for each sector with corresponding group name
+  
+  # Morning
+  addCircleMarkers(data=accidents %>% filter(Part.of.the.day=="Morning"), color="green", 
+                   group="Morning", radius=5, popup=~paste0("<b>", District.Name,"</b>", "<br/>", 
+                                                            "Month: ", Month, "<br/>",
+                                                            "Weekday: ", Weekday, "<br/>",
+                                                            "Hour: ", Hour)) %>%
+                                    
+  # Afternoon                                                         
+  addCircleMarkers(data=accidents %>% filter(Part.of.the.day=="Afternoon"), color="orange", 
+                   group="Afternoon", radius=5, popup=~paste0("<b>", District.Name,"</b>", "<br/>", 
+                                                              "Month: ", Month, "<br/>",
+                                                              "Weekday: ", Weekday, "<br/>",
+                                                              "Hour: ", Hour)) %>%
+  
+  # Night                                                           
+  addCircleMarkers(data=accidents %>% filter(Part.of.the.day=="Night"), color="blue", 
+                   group="Night", radius=5, popup=~paste0("<b>", District.Name,"</b>", "<br/>", 
+                                                          "Month: ", Month, "<br/>",
+                                                          "Weekday: ", Weekday, "<br/>",
+                                                          "Hour: ", Hour)) %>%
+  
+  # Add layer controls for base and overlay groups
+  addLayersControl(overlayGroups=c("Morning", "Afternoon", "Night"),
+                   baseGroups=c("OSM", "BlackAndWhite", "Esri")) %>%
+  
+  # Add legend
+  addLegend(position="bottomleft",
+            colors=c("green", "orange", "blue"), 
+            labels=c("Morning", "Afternoon", "Night"))
+```
+
+We can see how most of the night accidents happen in the city center. The locations of the morning and afternoon accidents are more distributed throughout the city.
+
+Let's see the distribution of accidents during 2017. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Accidents by month (2017)
+plot10 <- accidents %>%
+  count(Month, Part.of.the.day) %>% 
+  mutate(Month=factor(Month, levels=c("December", "November", "October", "September",
+                                      "August", "July", "June", "May",
+                                      "April", "March", "February", "January"))) %>%
+  ggplot(aes(x=Month, y=n, fill=Part.of.the.day)) + 
+  geom_col(position=position_stack(reverse=FALSE),  colour="black") +
+  geom_text(aes(label=n, group=Part.of.the.day), position=position_stack(vjust=0.5)) +
+  scale_fill_manual(values=c("sienna1", "darkolivegreen1", "slateblue1")) +
+  labs(x="Month", y="Accidents", title="Accidents by month (2017)") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank()) +
+  coord_flip()
+
+# Accidents (%)
+plot11 <- accidents %>%
+  count(Part.of.the.day) %>%
+  mutate(Percentage=paste0(round(n/sum(n)*100, 2), "%")) %>%
+  ggplot(aes(x=factor(1), y=n, fill=Part.of.the.day)) + 
+  geom_bar(stat="identity", width=1, size=1, color="white", show.legend=FALSE) +
+  geom_text(aes(label=Percentage), position=position_stack(vjust=0.5)) +
+  coord_polar(theta="y") +
+  labs(title="Accidents (%)") +
+  scale_fill_manual(values=c("sienna1", "darkolivegreen1", "slateblue1")) +
+  theme_void() +
+  theme(plot.title=element_text(hjust=0.5))
+
+# Subplot
+grid.arrange(plot10, plot11, layout_matrix=rbind(c(1, 1, 2),
+                                                 c(1, 1, 2)))
+```
+
+We can also analyze the traffic accidents by weekday. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Accidents by weekday (2017)
+accidents %>%
+  count(Weekday, Part.of.the.day) %>% 
+  mutate(Weekday=factor(Weekday, levels=c("Sunday", "Saturday", "Friday", "Thursday",
+                                          "Wednesday", "Tuesday", "Monday"))) %>%
+  ggplot(aes(x=Weekday, y=n, fill=Part.of.the.day)) + 
+  geom_col(position=position_stack(reverse=FALSE),  colour="black") +
+  geom_text(aes(label=n, group=Part.of.the.day), position=position_stack(vjust=0.5)) +
+  scale_fill_manual(values=c("sienna1", "darkolivegreen1", "slateblue1")) +
+  labs(x="Weekday", y="Accidents", title="Accidents by weekday (2017)") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank()) +
+  coord_flip()
+```
+
+Friday is the weekday with the most accidents. Conversely, Sunday is the weekday with fewer accidents. We can also see how the number of nighttime accidents increases over the weekend, while morning and afternoon accidents decrease (less traffic, I guess). 
+
+There's a column in the data set that gives us information about the number of victims for each accident. Let's find out in which district there are more deaths due to traffic accidents.
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Victims by district
+accidents %>%
+  group_by(District.Name, Part.of.the.day) %>%
+  summarise(Victims=sum(Victims)) %>%
+  filter(District.Name!="Unknown") %>%
+  ggplot(aes(x=reorder(District.Name, Victims, sum), y=Victims, fill=Part.of.the.day)) + 
+  geom_col(position=position_stack(reverse=FALSE),  colour="black") +
+  geom_text(aes(label=Victims, group=Part.of.the.day), position=position_stack(vjust=0.5)) +
+  scale_fill_manual(values=c("sienna1", "darkolivegreen1", "slateblue1")) +
+  labs(x="District name", y="Victims", title="Victims by district (2017)") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank()) +
+  coord_flip()
+```
+
+It's not a very hopeful graphic... more than 3.000 people have died only in the Eixample district during 2017.
+
+We can display a more detailed bar plot with the accidents by hour. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Accidents by hour (2017)
+accidents %>%
+  mutate(Weekday=factor(Weekday, levels=c("Monday", "Tuesday", "Wednesday", "Thursday",
+                                          "Friday", "Saturday", "Sunday"))) %>%
+  ggplot(aes(x=Hour, fill=Weekday)) +
+  geom_histogram(stat="count", colour="black") +
+  labs(y="Accidents", title="Accidents by hour (2017)") +
+  theme_bw() + 
+  theme(legend.title=element_blank())
+```
+
+We can also show the number of victims by district during the different months in 2017. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Victims by district (2017)
+accidents %>%
+  group_by(District.Name, Month) %>%
+  summarise(Victims=sum(Victims)) %>%
+  filter(District.Name!="Unknown") %>% 
+  mutate(Month=factor(Month, levels=c("January", "February", "March", 
+                                      "April", "May", "June",
+                                      "July", "August", "September", 
+                                      "October", "November", "December"))) %>%
+  ggplot(aes(x=Month, y=Victims, group=District.Name)) +
+  geom_line(aes(colour=District.Name), size=1) +
+  geom_point(aes(colour=District.Name), size=1) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        legend.title=element_blank()) +
+  labs(x="Month", y="District name", title="Victims by district (2017)") +
+  scale_color_discrete(name="District name")
+```
+
+And what about the injuries?
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Injuries by district (2017)
+accidents %>%
+  filter(District.Name!="Unknown") %>%
+  rename(`Mild injuries`=Mild.injuries,
+         `Serious injuries`=Serious.injuries) %>%
+  gather(Injuries, Values, 10:11) %>%
+  group_by(District.Name, Injuries) %>%
+  summarize(Count=sum(Values)) %>%
+  ggplot(aes(x=reorder(District.Name, Count, sum), y=Count, fill=Injuries)) + 
+  geom_col(position=position_stack(reverse=FALSE),  colour="black") +
+  geom_text(aes(label=Count, group=Injuries), position=position_stack(vjust=0.5)) +
+  scale_fill_manual(values=c("sienna1", "darkolivegreen1", "slateblue1")) +
+  labs(x="District name", y="Injuries", title="Injuries by district (2017)") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank()) +
+  coord_flip()
+```
+
+Finally, we are going to display some histograms with the number of injuries by severity, the number of vehicles involved and victims of the accidents. 
+
+```{r message=FALSE, warning=FALSE, fig.align='center'}
+# Histograms - Injuries by severity, vehicles involved and victims of the accidents (2017)
+accidents %>%
+  rename(`Mild injuries`=Mild.injuries,
+         `Serious injuries`=Serious.injuries,
+         `Vehicles involved`=Vehicles.involved) %>%
+  gather(Accidents, Values, 10:13) %>%
+  ggplot(aes(x=Values, fill=Accidents)) +
+  geom_histogram(stat="count", colour="black", show.legend=FALSE) +
+  facet_wrap(~Accidents, scales="free_x") +
+  theme_bw() +
+  theme(axis.title.x=element_blank()) +
+  labs(title="Injuries by severity, vehicles involved and victims (2017)", y="Count")
+```
+
+# **Summary**
+
+And that’s all! In this kernel we have analyzed some other aspects of the city of Barcelona: public transport, environment and accidents. In future updates I will be adding more content, so please stay tuned!
+
+It has been a pleasure to make this kernel! I have learned a lot, specially about the `leaflet` package. Remember that you can visit the first part (Discovering Barcelona) [here](https://www.kaggle.com/xvivancos/discovering-barcelona).
+Thank you so much for reading and if you like it, please upvote it.
+
+# **Citations for used packages**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+H. Wickham. ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York, 2016.
+
+Joe Cheng, Bhaskar Karambelkar and Yihui Xie (2018). leaflet: Create Interactive Web Maps with the JavaScript 'Leaflet' Library. R package version 2.0.2. https://CRAN.R-project.org/package=leaflet
+
+Bhaskar Karambelkar and Barret Schloerke (2018). leaflet.extras: Extra Functionality for 'leaflet' Package. R package version 1.0.0. https://CRAN.R-project.org/package=leaflet.extras
+
+Baptiste Auguie (2017). gridExtra: Miscellaneous Functions for "Grid" Graphics. R package version 2.3. https://CRAN.R-project.org/package=gridExtra
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Yihui Xie (2015) Dynamic Documents with R and knitr. 2nd edition. Chapman and Hall/CRC. ISBN 978-1498716963
+
+Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, editors, Implementing Reproducible Computational Research. Chapman and Hall/CRC. ISBN 978-1466561595

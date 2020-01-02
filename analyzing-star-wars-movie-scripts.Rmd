@@ -1,0 +1,433 @@
+---
+title: Analyzing Star Wars Movie Scripts
+author: Xavier Vivancos García
+date: '`r Sys.Date()`'
+output: 
+  html_document:
+    number_sections: yes
+    toc: yes
+    theme: cosmo
+    highlight: tango
+---
+
+# **Introduction**
+
+In this kernel we are going to perform a statistical text analysis on the Star Wars scripts from The Original Trilogy Episodes (IV, V and VI), using wordclouds to show the most frequent words. The input files used for the analysis are avaliable  [here](https://github.com/gastonstat/StarWars). This post is my particular tribute to the [Star Wars Day](https://en.wikipedia.org/wiki/Star_Wars_Day), on May 4.
+
+# **Loading data**
+
+```{r message=FALSE}
+# Load libraries
+library(tidyverse)
+library(tm)
+library(wordcloud)
+library(wordcloud2)
+library(tidytext)
+library(reshape2)
+library(radarchart)
+library(RWeka)
+
+# Read the data
+ep4 <- read.table("../input/SW_EpisodeIV.txt")
+ep5 <- read.table("../input/SW_EpisodeV.txt")
+ep6 <- read.table("../input/SW_EpisodeVI.txt")
+```
+
+# **Functions**
+
+The first function performs cleaning and preprocessing steps to a corpus:
+
+* `removePunctuation()`. Remove all punctuation marks
+* `stripWhitespace()`. Remove excess whitespace
+* `tolower()`. Make all characters lowercase
+* `removeWords()`. Remove some common English stop words ("I", "she'll", "the", etc.)
+* `removeNumbers()`. Remove numbers 
+
+```{r}
+# Text transformations
+cleanCorpus <- function(corpus){
+
+  corpus.tmp <- tm_map(corpus, removePunctuation)
+  corpus.tmp <- tm_map(corpus.tmp, stripWhitespace)
+  corpus.tmp <- tm_map(corpus.tmp, content_transformer(tolower))
+  v_stopwords <- c(stopwords("english"), c("thats","weve","hes","theres","ive","im",
+                                           "will","can","cant","dont","youve","us",
+                                           "youre","youll","theyre","whats","didnt"))
+  corpus.tmp <- tm_map(corpus.tmp, removeWords, v_stopwords)
+  corpus.tmp <- tm_map(corpus.tmp, removeNumbers)
+  return(corpus.tmp)
+
+}
+```
+
+The second function constructs the term-document matrix, that describes the frequency of terms that occur in a collection of documents. This matrix has terms in the first column and documents across the top as individual column names.
+
+```{r}
+# Most frequent terms 
+frequentTerms <- function(text){
+
+  s.cor <- Corpus(VectorSource(text))
+  s.cor.cl <- cleanCorpus(s.cor)
+  s.tdm <- TermDocumentMatrix(s.cor.cl)
+  s.tdm <- removeSparseTerms(s.tdm, 0.999)
+  m <- as.matrix(s.tdm)
+  word_freqs <- sort(rowSums(m), decreasing=TRUE)
+  dm <- data.frame(word=names(word_freqs), freq=word_freqs)
+  return(dm)
+
+}
+```
+
+The next two functions extract tokens containing two words. 
+
+```{r}
+# Define bigram tokenizer 
+tokenizer  <- function(x){
+
+  NGramTokenizer(x, Weka_control(min=2, max=2))
+
+}
+```
+
+```{r}
+# Most frequent bigrams 
+frequentBigrams <- function(text){
+
+  s.cor <- VCorpus(VectorSource(text))
+  s.cor.cl <- cleanCorpus(s.cor)
+  s.tdm <- TermDocumentMatrix(s.cor.cl, control=list(tokenize=tokenizer))
+  s.tdm <- removeSparseTerms(s.tdm, 0.999)
+  m <- as.matrix(s.tdm)
+  word_freqs <- sort(rowSums(m), decreasing=TRUE)
+  dm <- data.frame(word=names(word_freqs), freq=word_freqs)
+  return(dm)
+
+}
+```
+
+# **Episode IV: A New Hope**
+
+```{r fig.align='center'}
+# How many dialogues?
+length(ep4$dialogue)
+
+# How many characters?
+length(levels(ep4$character))
+
+# Top 20 characters with more dialogues 
+top.ep4.chars <- as.data.frame(sort(table(ep4$character), decreasing=TRUE))[1:20,]
+
+# Visualization 
+ggplot(data=top.ep4.chars, aes(x=Var1, y=Freq)) +
+  geom_bar(stat="identity", fill="#56B4E9", colour="black") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Character", y="Number of dialogues")
+```
+
+```{r eval=FALSE}
+# Wordcloud for Episode IV
+wordcloud2(frequentTerms(ep4$dialogue), size=0.5,
+           figPath="../input/wordcloud_masks/vader.png")
+```
+
+
+
+<img src="https://i.imgur.com/TzUfUrQ.png">
+
+
+**NOTE**: I have had a lot of problems with the renderization of the wordclouds in Kaggle. In order to solve it, I have exported the images from RStudio and I have published them in [Imgur](https://imgur.com/), using the URLs in this kernel.     
+
+```{r fig.align='center'}
+# Most frequent bigrams
+ep4.bigrams <- frequentBigrams(ep4$dialogue)[1:20,]
+ggplot(data=ep4.bigrams, aes(x=reorder(word, -freq), y=freq)) +  
+  geom_bar(stat="identity", fill="chocolate2", colour="black") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Bigram", y="Frequency")
+```
+
+# **Episode V: The Empire Strikes Back**
+
+```{r fig.align='center'}
+# How many dialogues?
+length(ep5$dialogue)
+
+# How many characters?
+length(levels(ep5$character))
+
+# Top 20 characters with more dialogues 
+top.ep5.chars <- as.data.frame(sort(table(ep5$character), decreasing=TRUE))[1:20,]
+
+# Visualization 
+ggplot(data=top.ep5.chars, aes(x=Var1, y=Freq)) +
+  geom_bar(stat="identity", fill="#56B4E9", colour="black") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Character", y="Number of dialogues")
+```
+
+```{r eval=FALSE}
+# Wordcloud for Episode V
+wordcloud2(frequentTerms(ep5$dialogue), size=0.5,
+           figPath="../input/wordcloud_masks/yoda.png")
+```
+
+<img src="https://i.imgur.com/KMKIPMk.png">
+
+```{r fig.align='center'}
+# Most frequent bigrams
+ep5.bigrams <- frequentBigrams(ep5$dialogue)[1:20,]
+ggplot(data=ep5.bigrams, aes(x=reorder(word, -freq), y=freq)) +  
+  geom_bar(stat="identity", fill="chocolate2", colour="black") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Bigram", y="Frequency")
+```
+
+# **Episode VI: Return of the Jedi**
+
+```{r fig.align='center'}
+# How many dialogues?
+length(ep6$dialogue)
+
+# How many characters?
+length(levels(ep6$character))
+
+# Top 20 characters with more dialogues
+top.ep6.chars <- as.data.frame(sort(table(ep6$character), decreasing=TRUE))[1:20,]
+
+# Visualization 
+ggplot(data=top.ep6.chars, aes(x=Var1, y=Freq)) +
+  geom_bar(stat="identity", fill="#56B4E9", colour="black") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Character", y="Number of dialogues")
+```
+
+```{r eval=FALSE}
+# Wordcloud for Episode VI
+wordcloud2(frequentTerms(ep6$dialogue), size=0.5,
+           figPath="../input/wordcloud_masks/r2d2.png")
+```
+
+<img src="https://i.imgur.com/0ou5EPG.png">
+
+```{r fig.align='center'}
+# Most frequent bigrams
+ep6.bigrams <- frequentBigrams(ep6$dialogue)[1:20,]
+ggplot(data=ep6.bigrams, aes(x=reorder(word, -freq), y=freq)) +  
+  geom_bar(stat="identity", fill="chocolate2", colour="black") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Bigram", y="Frequency")
+```
+
+# **The Original Trilogy**
+
+In this section we are going to compute the previous statistics, but now considering the three movies of The Original Trilogy (Episodes IV, V and VI).
+
+```{r fig.align='center'}
+# The Original Trilogy dialogues 
+trilogy <- rbind(ep4, ep5, ep6)
+
+# How many dialogues?
+length(trilogy$dialogue)
+
+# How many characters?
+length(levels(trilogy$character))
+
+# Top 20 characters with more dialogues 
+top.trilogy.chars <- as.data.frame(sort(table(trilogy$character), decreasing=TRUE))[1:20,]
+
+# Visualization 
+ggplot(data=top.trilogy.chars, aes(x=Var1, y=Freq)) +
+  geom_bar(stat="identity", fill="#56B4E9", colour="black") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Character", y="Number of dialogues")
+```
+
+C-3PO with more dialogues than Leia and Darth Vader? Ugh... 
+
+```{r eval=FALSE}
+# Wordcloud for The Original Trilogy
+wordcloud2(frequentTerms(trilogy$dialogue), size=0.4)
+           figPath="../input/wordcloud_masks/rebel alliance.png")
+```
+
+<img src="https://i.imgur.com/e7NLonz.png">
+
+```{r fig.align='center'}
+# Most frequent bigrams
+trilogy.bigrams <- frequentBigrams(trilogy$dialogue)[1:20,]
+ggplot(data=trilogy.bigrams, aes(x=reorder(word, -freq), y=freq)) +  
+  geom_bar(stat="identity", fill="chocolate2", colour="black") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Bigram", y="Frequency")
+```
+
+## Sentiment analysis
+
+Let’s address the topic of opinion mining or sentiment analysis. We can use the tools of text mining to approach the emotional content of text programmatically.
+
+```{r}
+# Transform the text to a tidy data structure with one token per row
+tokens <- trilogy %>%  
+  mutate(dialogue=as.character(trilogy$dialogue)) %>%
+  unnest_tokens(word, dialogue)
+```
+
+First we are going to use the general-purpose lexicon `bing`, from [Bing Liu and collaborators](https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html). The `bing` lexicon categorizes words in a binary fashion into positive and negative categories. 
+
+```{r message=FALSE, fig.align='center'}
+# Positive and negative words
+tokens %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort=TRUE) %>%
+  acast(word ~ sentiment, value.var="n", fill=0) %>%
+  comparison.cloud(colors=c("#F8766D", "#00BFC4"), max.words=100)
+```
+
+The `nrc` lexicon (from [Saif Mohammad and Peter Turney](http://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm)) categorizes words in a binary fashion into categories of positive, negative, anger, anticipation, disgust, fear, joy, sadness, surprise, and trust. 
+
+```{r message=FALSE, fig.align='center'}
+# Sentiments and frequency associated with each word  
+sentiments <- tokens %>% 
+  inner_join(get_sentiments("nrc")) %>%
+  count(word, sentiment, sort=TRUE) 
+
+# Frequency of each sentiment
+ggplot(data=sentiments, aes(x=reorder(sentiment, -n, sum), y=n)) + 
+  geom_bar(stat="identity", aes(fill=sentiment), show.legend=FALSE) +
+  labs(x="Sentiment", y="Frequency") +
+  theme_bw() 
+```
+
+We can use this lexicon to compute the most frequent words for each sentiment. 
+
+```{r fig.align='center'}
+# Top 10 terms for each sentiment
+sentiments %>%
+  group_by(sentiment) %>%
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(word, n), y=n)) +
+  geom_col(aes(fill=sentiment), show.legend=FALSE) +
+  facet_wrap(~sentiment, scales="free_y") +
+  labs(y="Frequency", x="Terms") +
+  coord_flip() +
+  theme_bw() 
+```
+
+## Analysis by character
+
+In the following visualizations we only consider the Top 10 characters with more dialogues. 
+
+```{r message=FALSE, fig.align='center'}
+# Sentiment analysis for the Top 10 characters with more dialogues
+tokens %>%
+  filter(character %in% c("LUKE","HAN","THREEPIO","LEIA","VADER",
+                          "BEN","LANDO","YODA","EMPEROR","RED LEADER")) %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(character, sentiment, sort=TRUE) %>%
+  ggplot(aes(x=sentiment, y=n)) +
+  geom_col(aes(fill=sentiment), show.legend=FALSE) +
+  facet_wrap(~character, scales="free_x") +
+  labs(x="Sentiment", y="Frequency") +
+  coord_flip() +
+  theme_bw() 
+```
+
+To calculate the most frequent words for each character, we are going to use a different approach than the term-document matrix: the tidy way. 
+
+```{r fig.align='center'}
+# Stopwords
+mystopwords <- data_frame(word=c(stopwords("english"), 
+                                 c("thats","weve","hes","theres","ive","im",
+                                   "will","can","cant","dont","youve","us",
+                                   "youre","youll","theyre","whats","didnt")))
+
+# Tokens without stopwords
+top.chars.tokens <- trilogy %>%
+  mutate(dialogue=as.character(trilogy$dialogue)) %>%
+  filter(character %in% c("LUKE","HAN","THREEPIO","LEIA","VADER",
+                          "BEN","LANDO","YODA","EMPEROR","RED LEADER")) %>%
+  unnest_tokens(word, dialogue) %>%
+  anti_join(mystopwords, by="word")
+
+# Most frequent words for each character
+top.chars.tokens %>%
+  count(character, word) %>%
+  group_by(character) %>% 
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ungroup() %>%
+  mutate(word2=factor(paste(word, character, sep="__"), 
+                       levels=rev(paste(word, character, sep="__"))))%>%
+  ggplot(aes(x=word2, y=n)) +
+  geom_col(aes(fill=character), show.legend=FALSE) +
+  facet_wrap(~character, scales="free_y") +
+  labs(x="Sentiment", y="Frequency") +
+  scale_x_discrete(labels=function(x) gsub("__.+$", "", x)) +
+  coord_flip() +
+  theme_bw()
+```
+
+What is the problem with this visualization? Some words are generic and meaningless. We can use the `bind_tf_idf()` function
+to obtain more relevant and characteristic terms associated with each character. The idea of [`tf–idf`](https://en.wikipedia.org/wiki/Tf%E2%80%93idf) (_term frequency_ - _inverse document frequency_) is to find the important words for the content of each document by decreasing the weight for commonly used words and increasing the weight for words that are not used very much in a collection or corpus of documents.
+If the term appears in all documents, it is not likely to be insightful.
+
+```{r fig.align='center'}
+# Most relevant words for each character
+top.chars.tokens %>%
+  count(character, word) %>%
+  bind_tf_idf(word, character, n) %>%
+  group_by(character) %>% 
+  arrange(desc(tf_idf)) %>%
+  slice(1:10) %>%
+  ungroup() %>%
+  mutate(word2=factor(paste(word, character, sep="__"), 
+                       levels=rev(paste(word, character, sep="__"))))%>%
+  ggplot(aes(x=word2, y=tf_idf)) +
+  geom_col(aes(fill=character), show.legend=FALSE) +
+  facet_wrap(~character, scales="free_y") +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(y="tf–idf", x="Sentiment") +
+  scale_x_discrete(labels=function(x) gsub("__.+$", "", x)) +
+  coord_flip() +
+  theme_bw()
+```
+
+These words are, as measured by `tf–idf`, the most important to each character.  We can identify most of them by only seeing the words. 
+
+# **Summary**
+
+In this entry we have analyzed the Star Wars scripts from The Original Trilogy Episodes by performing a statistical text analysis, including: 
+
+* Most frequent words and bigrams for each Episode (term-document matrix approach).
+* Sentiment analysis using the lexicons `bing` and `nrc`, considering the three Episodes.
+* Sentiment analysis and most frequent words by character (the tidy way).
+* Most relevant words by character using the statistic `tf–idf`.
+
+It has been a pleasure to make this post, I have learned a lot! Thank you for reading and if you like it, please upvote it.
+
+# **References**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Ingo Feinerer and Kurt Hornik (2017). tm: Text Mining Package. R package version 0.7-3. https://CRAN.R-project.org/package=tm
+
+Ian Fellows (2014). wordcloud: Word Clouds. R package version 2.5. https://CRAN.R-project.org/package=wordcloud
+
+Dawei Lang and Guan-tin Chien (2018). wordcloud2: Create Word Cloud by 'htmlwidget'. R package version 0.2.1. https://CRAN.R-project.org/package=wordcloud2
+
+Silge J, Robinson D (2016). “tidytext: Text Mining and Analysis Using Tidy Data Principles in R.” _JOSS_, *1*(3). doi: 10.21105/joss.00037 (URL: http://doi.org/10.21105/joss.00037), <URL: http://dx.doi.org/10.21105/joss.00037>.
+
+Hadley Wickham (2007). Reshaping Data with the reshape Package. Journal of Statistical Software, 21(12), 1-20. URL http://www.jstatsoft.org/v21/i12/.
+
+Doug Ashton and Shane Porter (2016). radarchart: Radar Chart from 'Chart.js'. R package version 0.3.1. https://CRAN.R-project.org/package=radarchart
+
+Hornik K, Buchta C, Zeileis A (2009). “Open-Source Machine Learning: R Meets Weka.” _Computational Statistics_, *24*(2), 225-232. doi: 10.1007/s00180-008-0119-7 (URL: http://doi.org/10.1007/s00180-008-0119-7)

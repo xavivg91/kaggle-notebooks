@@ -1,0 +1,1169 @@
+---
+title: "**Michael Jordan vs Kobe Bryant vs Lebron James**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    code_folding: hide
+    theme: cosmo
+    highlight: tango
+---
+
+<center><img
+src="https://i.imgur.com/mebnxNv.jpg">
+</center>
+
+<p style="font-family: times, serif; font-size:18pt; font-style:italic">
+“I've missed more than 9000 shots in my career. I've lost almost 300 games. 26 times, I've been trusted to take the game winning shot and missed. 
+I've failed over and over and over again in my life. And that is why I succeed.” 
+</p>
+<div style="text-align: right"> **Michael Jordan** </div>
+
+# **Introduction**
+
+Hi! In this kernel we are going to study which historical player ([Michael Jordan](https://simple.wikipedia.org/wiki/Michael_Jordan), [Kobe Bryant](https://en.wikipedia.org/wiki/Kobe_Bryant)
+or [Lebron James](https://en.wikipedia.org/wiki/LeBron_James)) is stadistically better. There's a lot of discussions about it! 
+I personally think that Jordan is the best basketball player in history, but let's use data from [Basketball Reference](https://www.basketball-reference.com/) to discover if it's true or not. 
+
+**NOTE**: Maybe it's an unfair comparison, since Lebron James hasn't yet retired. But I cannot wait for him to retire to do this analysis!
+
+By the way, if you like basketball, you can also check these other kernels:
+
+* [Kobe Bryant Shot Selection](https://www.kaggle.com/xvivancos/kobe-bryant-shot-selection)
+
+* [EDA - Tweets during Cleveland Cavaliers vs Golden State Warriors](https://www.kaggle.com/xvivancos/eda-tweets-during-cavaliers-vs-warriors)
+
+* [How good is Luka Doncic?](https://www.kaggle.com/xvivancos/how-good-is-luka-doncic)
+
+If you want to see another similar kernel, don't hesitate to check [Ethan's analysis](https://www.kaggle.com/etsc9287/federer-vs-djokovic-vs-nadal-who-is-the-goat): 
+"Roger Federer vs. Novak Djokovic vs. Rafael Nadal: Who is the GOAT?"
+ 
+# **Loading Data** {.tabset .tabset-fade .tabset-pills}
+
+First we need to load some libraries and read the data sets.
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(tidyverse)
+library(gganimate)
+library(grid)
+library(ggpubr)
+library(plotly)
+library(knitr)
+library(ggridges)
+library(viridis)
+
+# Read the data 
+advanced_stats <- read.csv("../input/advanced_stats.csv", sep=",", fileEncoding="UTF-8")
+colnames(advanced_stats)[c(9, 10, 12, 13, 14:19, 23)] <- c("TS%", "3PAr", "ORB%", "DRB%", "TRB%", "AST%",
+                                                           "STL%", "BLK%", "TOV%", "USG%", "WS/48")
+
+allstar_games_stats <- read.csv("../input/allstar_games_stats.csv", sep=",", fileEncoding="UTF-8")
+colnames(allstar_games_stats)[c(11:14, 17)] <- c("FG%", "3P", "3PA", "3P%", "FT%")
+
+game_highs_stats <- read.csv("../input/game_highs_stats.csv", sep=",", fileEncoding="UTF-8")
+colnames(game_highs_stats)[8:11] <- c("3P", "3PA", "2P", "2PA")
+
+per_game_stats <- read.csv("../input/per_game_stats.csv", sep=",", fileEncoding="UTF-8")
+colnames(per_game_stats)[c(11:18, 21)] <- c("FG%", "3P", "3PA", "3P%", "2P",
+                                            "2PA", "2P%", "eFG%", "FT%")
+
+salaries <- read.csv("../input/salaries.csv", sep=",", fileEncoding="UTF-8")
+
+totals_stats <- read.csv("../input/totals_stats.csv", sep=",", fileEncoding="UTF-8")
+colnames(totals_stats)[c(11:18, 21)] <- c("FG%", "3P", "3PA", "3P%", "2P",
+                                          "2PA", "2P%", "eFG%", "FT%")
+
+allgames_stats <- read.csv("../input/allgames_stats.csv")
+colnames(allgames_stats)[c(11, 12, 13, 14, 17)] <- c("FG%", "3P", "3PA", "3P%", "FT%")
+```
+
+Let’s get an idea of what we’re working with.
+
+## Advanced stats 
+```{r message=FALSE, warning=FALSE}
+# Structure
+str(advanced_stats)
+```
+
+## All-Star Games 
+```{r message=FALSE, warning=FALSE}
+# Structure
+str(allstar_games_stats)
+```
+
+## Game Highs 
+```{r message=FALSE, warning=FALSE}
+# Structure
+str(game_highs_stats)
+```
+
+## Per game
+```{r message=FALSE, warning=FALSE}
+# Structure
+str(per_game_stats)
+```
+
+## Salaries
+```{r}
+# Structure
+str(salaries)
+```
+
+## Totals
+```{r}
+# Structure
+str(totals_stats)
+```
+
+## All games
+```{r}
+# Structure
+str(allgames_stats)
+```
+
+# **Glossary**
+
+I would like to clarify some simple terms that appear in the data sets (**Reference**: [Basketball Reference](https://www.basketball-reference.com/))
+
+<center>
+
+|   **Term**    |    Meaning                                  |  **Term**     |  Meaning                          |
+|:--------------|:--------------------------------------------|:--------------|:----------------------------------|
+| **Pos**       | Position                                    | **eFG%**      | Effective Field Goal Percentage   |
+| **Tm**        | Team                                        | **Lg**        | League                            |
+| **G**         | Games                                       | **+/-**       | Plus/Minus                        |
+| **GS**        | Games Started                               | **GmSc**      | Game Score                        | 
+| **MP**        | Minutes Played Per Game                     | **PTS**       | Points per Game                   |
+| **FG**        | Field Goals Per Game                        | **PF**        | Personal Fouls Per Game           |
+| **FGA**       | Field Goal Attempts Per Game                | **TOV**       | Turnovers Per Game                |
+| **FG%**       | Field Goal Percentage                       | **BLK**       | Blocks Per Game                   |
+| **3P**        | 3-Point Field Goals Per Game                | **STL**       | Steals Per Game                   |
+| **3PA**       | 3-Point Field Goal Attempts Per Game        | **AST**       | Assists Per Game                  |
+| **3P%**       | 3-Point Field Goal Percentage               | **TRB**       | Total Rebounds Per Game           |
+| **2P**        | 2-Point Field Goals Per Game                | **DRB**       | Defensive Rebounds Per Game       |
+| **2PA**       | 2-Point Field Goal Attempts Per Game        | **ORB**       | Offensive Rebounds Per Game       |
+| **2P%**       | 2-Point Field Goal Percentage               | **FT%**       | Free Throw Percentage             |
+| **FT**        | Free Throws Per Game                        | **FTA**       | Free Throw Attempts Per Game      |
+
+</center> 
+
+Some other advanced terms: 
+
+<center>
+
+|   **Term**    |   **Meaning**                      |   **Exlanation**                                                                                                                                                                              |
+|:--------------|:-----------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **PER**       | Player Efficiency Rating           |A measure of per-minute production standardized such that the league average is 15.                                                                                                            |
+| **TS%**       | True Shooting Percentage           |A measure of shooting efficiency that takes into account 2-point field goals, 3-point field goals, and free throws.                                                                            |
+| **3PAr**      | 3-Point Attempt Rate               |Percentage of FG Attempts from 3-Point Range.                                                                                                                                                  |
+| **FTr**       | Free Throw Attempt Rate            |Number of FT Attempts Per FG Attempt.                                                                                                                                                          |
+| **ORB%**      | Offensive Rebound Percentage       |An estimate of the percentage of available offensive rebounds a player grabbed while he was on the floor.                                                                                      |
+| **DRB%**      | Defensive Rebound Percentage       |An estimate of the percentage of available defensive rebounds a player grabbed while he was on the floor.                                                                                      |
+| **TRB%**      | Total Rebound Percentage           |An estimate of the percentage of available rebounds a player grabbed while he was on the floor.                                                                                                |
+| **AST%**      | Assist Percentage                  |An estimate of the percentage of teammate field goals a player assisted while he was on the floor.                                                                                             |
+| **STL%**      | Steal Percentage                   |An estimate of the percentage of opponent possessions that end with a steal by the player while he was on the floor.                                                                           |
+| **BLK%**      | Block Percentage                   |An estimate of the percentage of opponent two-point field goal attempts blocked by the player while he was on the floor.                                                                       |
+| **TOV%**      | Turnover Percentage                |An estimate of turnovers committed per 100 plays.                                                                                                                                              |
+| **USG%**      | Usage Percentage                   |An estimate of the percentage of team plays used by a player while he was on the floor.                                                                                                        |
+| **OWS**       | Offensive Win Shares               |An estimate of the number of wins contributed by a player due to his offense.                                                                                                                  |
+| **DWS**       | Defensive Win Shares               |An estimate of the number of wins contributed by a player due to his defense.                                                                                                                  |
+| **WS**        | Win Shares                         |An estimate of the number of wins contributed by a player.                                                                                                                                     |
+| **WS/48**     | Win Shares Per 48 Minutes          |An estimate of the number of wins contributed by a player per 48 minutes (league average is approximately .100)                                                                                |
+| **OBPM**      | Offensive Box Plus/Minus           |A box score estimate of the offensive points per 100 possessions a player contributed above a league-average player, translated to an average team.                                            |
+| **DBPM**      | Defensive Box Plus/Minus           |A box score estimate of the defensive points per 100 possessions a player contributed above a league-average player, translated to an average team.                                            |
+| **BPM**       | Box Plus/Minus                     |A box score estimate of the points per 100 possessions a player contributed above a league-average player, translated to an average team.                                                      |
+| **VORP**      | Value over Replacement Player      |A box score estimate of the points per 100 TEAM possessions that a player contributed above a replacement-level (-2.0) player, translated to an average team and prorated to an 82-game season.|
+ 
+</center> 
+
+# **Data analysis**
+
+## Points, Rebounds and Assists 
+
+### Animated visualizations {.tabset .tabset-fade .tabset-pills}
+
+Let's begin with, probably, the most basic and important basketball stats: points, rebounds and assists. In the following animated visualizations we can analyze 
+their averages stats over the seasons (Regular Season and Playoffs). 
+
+The visualizations are created with the `plotly` library. My initial idea was to use the `gganimate` package, but I had some problems on Kaggle. 
+
+#### Michael Jordan 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Cumulative lines animation
+accumulate_by <- function(dat, var) {
+  var <- lazyeval::f_eval(var, dat)
+  lvls <- plotly:::getLevels(var)
+  dats <- lapply(seq_along(lvls), function(x) {
+    cbind(dat[var %in% lvls[seq(1, x)], ], frame = lvls[[x]])})
+    
+  dplyr::bind_rows(dats)
+}
+
+# Axis labels
+abbrev_x_jordan <- c("1984-85", "1985-86", "1986-87", "1987-88", "1988-89",
+                     "1989-90", "1990-91", "1991-92", "1992-93", "1994-95",
+                     "1995-96", "1996-97", "1997-98", "2001-02", "2002-03")
+
+# Michael Jordan stats (1984-2003) - Points, Rebounds and Assists per game. Regular Season and Playoffs
+plot <- per_game_stats %>%
+  filter(Player=="Michael Jordan") %>%
+  select(Season, PTS, TRB, AST, RSorPO) %>%
+  mutate(Season=as.numeric(substr(Season, 1, 4))) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Stats, Value, 2:4) %>%
+  accumulate_by(~Season) %>%
+  ggplot(aes(x=Season, y=Value, colour=RSorPO, group=RSorPO, frame=frame)) +
+  geom_line(size=1) +
+  geom_point() +
+  facet_grid(Stats ~ . , scales="free") +
+  labs(title="Michael Jordan stats (1984-2003)
+       Points, Rebounds and Assists per game. Regular Season and Playoffs") +
+  scale_x_continuous(breaks=c(1984:1992, 1994:1997, 2001, 2002), labels=abbrev_x_jordan) +
+  theme_bw() +
+  theme(axis.title.y=element_blank(), 
+        axis.title.x=element_blank(), 
+        axis.text.x=element_text(angle=45, hjust=1)) 
+
+# Create plotly graph
+ggplotly(plot, height=600, width=900, tooltip=c("x", "y", "colour", "frame")) %>%
+  animation_slider(hide=T) %>%
+  layout(xaxis=list(title="Season"), showlegend=FALSE)
+```
+
+#### Kobe Bryant 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Axis labels 
+abbrev_x_kobe <- c("1996-97", "1997-98", "1998-99", "1999-00", "2000-01",
+                   "2001-02", "2002-03", "2003-04", "2004-05", "2005-06",
+                   "2006-07", "2007-08", "2008-09", "2009-10", "2010-11", 
+                   "2011-12", "2012-13", "2013-14", "2014-15", "2015-16")
+
+# Kobe Bryant stats (1996-2016) - Points, Rebounds and Assists per game. Regular Season and Playoffs
+plot <- per_game_stats %>%
+  filter(Player=="Kobe Bryant") %>%
+  select(Season, PTS, TRB, AST, RSorPO) %>%
+  mutate(Season=as.numeric(substr(Season, 1, 4))) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Stats, Value, 2:4) %>%
+  accumulate_by(~Season) %>%
+  ggplot(aes(x=Season, y=Value, colour=RSorPO, group=RSorPO, frame=frame)) +
+  geom_line(size=1) +
+  geom_point() +
+  facet_grid(Stats ~ . , scales="free") +
+  labs(title="Kobe Bryant stats (1996-2016)
+       Points, Rebounds and Assists per game. Regular Season and Playoffs") +
+  scale_x_continuous(breaks=1996:2015, labels=abbrev_x_kobe) +
+  theme_bw() +
+  theme(axis.title.y=element_blank(), 
+        axis.title.x=element_blank(), 
+        axis.text.x=element_text(angle=45, hjust=1)) 
+
+# Create plotly graph
+ggplotly(plot, height=600, width=900, tooltip=c("x", "y", "colour", "frame")) %>%
+  animation_slider(hide=T) %>%
+  layout(xaxis=list(title="Season"), showlegend=FALSE)
+```
+
+#### Lebron James 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Axis labels
+abbrev_x_lebron <- c("2003-04", "2004-05", "2005-06", "2006-07", "2007-08",
+                     "2008-09", "2009-10", "2010-11", "2011-12", "2012-13",
+                     "2013-14", "2014-15", "2015-16", "2016-17", "2017-18",
+                     "2018-19")
+
+# Lebron James stats (2003-2019) - Points, Rebounds and Assists per game. Regular Season and Playoffs
+plot <- per_game_stats %>%
+  filter(Player=="Lebron James") %>%
+  add_row(Season="2003-04", RSorPO="Playoffs", .before=17) %>%
+  add_row(Season="2004-05", RSorPO="Playoffs", .before=18) %>%
+  add_row(Season="2018-19", RSorPO="Playoffs") %>%
+  select(Season, PTS, TRB, AST, RSorPO) %>%
+  mutate(Season=as.numeric(substr(Season, 1, 4))) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Stats, Value, 2:4) %>%
+  accumulate_by(~Season) %>%
+  ggplot(aes(x=Season, y=Value, colour=RSorPO, group=RSorPO, frame=frame)) +
+  geom_line(size=1) +
+  geom_point(aes(colour=RSorPO, group=RSorPO)) +
+  facet_grid(Stats ~ . , scales="free") +
+  labs(title="Lebron James stats (2003-2019)
+       Points, Rebounds and Assists per game. Regular Season and Playoffs") +
+  scale_x_continuous(breaks=2003:2018, labels=abbrev_x_lebron) +
+  theme_bw() +
+  theme(axis.title.y=element_blank(), 
+        axis.title.x=element_blank(), 
+        axis.text.x=element_text(angle=45, hjust=1)) 
+
+# Create plotly graph
+ggplotly(plot, height=600, width=900, tooltip=c("x", "y", "colour", "frame")) %>%
+  animation_slider(hide=T) %>%
+  layout(xaxis=list(title="Season"), showlegend=FALSE)
+```
+
+### Density plot and histogram
+
+Let's study the distribution of their all-time career stats, using a density plot and a histogram. The density plot computes and draws kernel density estimate. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# All-Time career stats - Points, Rebounds and Assists
+allgames_stats %>%
+  select(PTS, TRB, AST, Player, RSorPO) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Stats, Value, 1:3) %>%
+  ggplot(aes(x=Value, fill=Stats)) +
+  geom_density(alpha=0.5) +
+  xlim(0, 60) +
+  facet_grid(Player ~ .) +
+  labs(title="All-Time career stats", subtitle="Points, Rebounds and Assists", y="Density") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        axis.title.x=element_blank(),
+        legend.title=element_blank())
+```
+
+We can se how the points distribution is more wide than the rebounds and assists distributions (more concentrated on the left).
+It makes sense: the number of points is usually higher than the number of rebounds and assists. Using a density plot we don't see significant differences between the three players.
+
+Let's visualize now the histogram, 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# All-Time career stats - Points, Rebounds and Assists
+allgames_stats %>%
+  select(PTS, TRB, AST, Player, RSorPO) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Stats, Value, 1:3) %>%
+  ggplot(aes(x=Value, fill=Stats)) +
+  geom_histogram(stat="count") +
+  xlim(0, 60) +
+  facet_grid(Player ~ .) +
+  labs(title="All-Time career stats", subtitle="Points, Rebounds and Assists", y="Count") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        axis.title.x=element_blank(),
+        legend.title=element_blank())
+```
+
+### Hexagonal heatmaps {.tabset .tabset-fade .tabset-pills}
+
+This type of visualization divides the plane into regular hexagons, counts the number of cases in each hexagon, and then (by default) maps the number of cases to the hexagon fill.
+
+We can see how Michael Jordan and Lebron James are more rebounder and have more pass ability than Kobe Bryant. On the other hand, Michael Jordan and Kobe Bryant score more points than Lebron James. 
+
+#### Points and rebounds
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Hexagonal heatmap - Points and rebounds
+ggplot(allgames_stats,aes(x=PTS, y=TRB)) +
+  geom_hex(bins=20, size=0.5, color="black", show.legend=FALSE) +
+  scale_fill_viridis_c(option = "A") + 
+  facet_wrap(Player~.) +
+  labs(title="All-Time career stats", subtitle="Hexagonal heatmap. Points and rebounds",
+       x="Points", y="Rebounds") +
+  theme_bw()
+```
+
+#### Points and assists 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Hexagonal heatmap - Points and assists
+ggplot(allgames_stats,aes(x=PTS, y=AST)) +
+  geom_hex(bins=20, size=0.5, color="black", show.legend=FALSE) +
+  scale_fill_viridis_c(option = "A") + 
+  facet_wrap(Player~.) +
+  labs(title="All-Time career stats", subtitle="Hexagonal heatmap. Points and assists",
+       x="Points", y="Assists") +
+  theme_bw()
+```
+
+### 3D plot
+
+We can also display a basic 3D scatter plot to study the previous insights from another point of view. `x` (Points), `y` (Rebounds) and `z` (Assists) are the coordinates of points to be plotted.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# 3D plot - Points, Rebounds and Assists
+plot_ly(allgames_stats, x=~PTS, y=~TRB, z=~AST) %>%
+  add_markers(color=~Player) %>%
+  layout(
+    title="Points, Rebounds and Assists",
+    scene=list(
+      xaxis=list(title="Points"),
+      yaxis=list(title="Rebounds"),
+      zaxis=list(title="Assists")
+    ))
+```
+
+### Ridgeline plots {.tabset .tabset-fade .tabset-pills}
+
+Let's use the `geom_density_ridgeline_gradient()` from the `ggridges` package to analize the points, rebounts and assists distributions over the years. 
+
+**NOTE**: The `y` axis represents natural years, not seasons. In future updates I will try to fix it!
+
+#### Michael Jordan 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Michael Jordan stats (1984-2003) - Ridgeline plots
+allgames_stats %>%
+  select(Date, PTS, TRB, AST, Player) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  filter(Player=="Michael Jordan") %>%
+  mutate(Year=as.numeric(substr(Date, 1, 4))) %>%
+  gather(Stat, Values, 2:4) %>%
+  ggplot(aes(x=Values, y=as.factor(Year), fill=..x..)) + 
+  geom_density_ridges_gradient(scale=2, rel_min_height=0.01, gradient_lwd=1., show.legend=FALSE) +
+  scale_fill_viridis(option="B") +
+  labs(title="Michael Jordan stats (1984-2003)", y="Year",
+       subtitle="Ridgeline plots - Points, Rebounds and Assists") +
+  facet_wrap(~Stat, scales="free_x") +
+  theme_bw() +
+  theme(axis.title.x=element_blank()) 
+```
+
+#### Michael Jordan (RS and PO) 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Michael Jordan stats (1984-2003) - Ridgeline plots. Regular Season and Playoffs
+allgames_stats %>%
+  select(Date, PTS, TRB, AST, Player, RSorPO) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  filter(Player=="Michael Jordan") %>%
+  mutate(Year=as.numeric(substr(Date, 1, 4))) %>%
+  gather(Stat, Values, 2:4) %>%
+  ggplot(aes(x=Values, y=as.factor(Year), fill=RSorPO)) + 
+  geom_density_ridges_gradient() +
+  labs(title="Michael Jordan stats (1984-2003)", y="Year", 
+       subtitle="Ridgeline plots - Points, Rebounds and Assists. Regular Season and Playoffs") +
+  facet_wrap(~Stat, scales="free_x") +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        legend.position="bottom",
+        legend.title=element_blank()) 
+```
+
+#### Kobe Bryant 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Kobe Bryant stats (1996-2016) - Ridgeline plots
+allgames_stats %>%
+  select(Date, PTS, TRB, AST, Player) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  filter(Player=="Kobe Bryant") %>%
+  mutate(Year=as.numeric(substr(Date, 1, 4))) %>%
+  gather(Stat, Values, 2:4) %>%
+  ggplot(aes(x=Values, y=as.factor(Year), fill=..x..)) + 
+  geom_density_ridges_gradient(scale=2, rel_min_height=0.01, gradient_lwd=1., show.legend=FALSE) +
+  scale_fill_viridis(option="C") +
+  labs(title="Kobe Bryant stats (1996-2016)", y="Year", 
+       subtitle="Ridgeline plots - Points, Rebounds and Assists") +
+  facet_wrap(~Stat, scales="free_x") +
+  theme_bw() +
+  theme(axis.title.x=element_blank()) 
+```
+
+#### Kobe Bryant (RS and PO) 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Kobe Bryant stats (1996-2016) - Ridgeline plots. Regular Season and Playoffs
+allgames_stats %>%
+  select(Date, PTS, TRB, AST, Player, RSorPO) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  filter(Player=="Kobe Bryant") %>%
+  mutate(Year=as.numeric(substr(Date, 1, 4))) %>%
+  gather(Stat, Values, 2:4) %>%
+  ggplot(aes(x=Values, y=as.factor(Year), fill=RSorPO)) + 
+  geom_density_ridges_gradient() +
+  labs(title="Kobe Bryant stats (1996-2016)", y="Year",  
+       subtitle="Ridgeline plots - Points, Rebounds and Assists. Regular Season and Playoffs") +
+  facet_wrap(~Stat, scales="free_x") +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        legend.position="bottom",
+        legend.title=element_blank()) 
+```
+
+#### Lebron James 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Lebron James stats (2003-2019) - Ridgeline plots
+allgames_stats %>%
+  select(Date, PTS, TRB, AST, Player) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  filter(Player=="Lebron James") %>%
+  mutate(Year=as.numeric(substr(Date, 1, 4))) %>%
+  gather(Stat, Values, 2:4) %>%
+  ggplot(aes(x=Values, y=as.factor(Year), fill=..x..)) + 
+  geom_density_ridges_gradient(scale=2, rel_min_height=0.01, gradient_lwd=1., show.legend=FALSE) +
+  scale_fill_viridis(option="D") +
+  labs(title="Lebron James stats (2003-2019)", y="Year", 
+       subtitle="Ridgeline plots - Points, Rebounds and Assists") +
+  facet_wrap(~Stat, scales="free_x") +
+  theme_bw() +
+  theme(axis.title.x=element_blank()) 
+```
+
+#### Lebron James (RS and PO) 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Lebron James stats (2003-2019) - Ridgeline plots. Regular Season and Playoffs
+allgames_stats %>%
+  select(Date, PTS, TRB, AST, Player, RSorPO) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  filter(Player=="Lebron James") %>%
+  mutate(Year=as.numeric(substr(Date, 1, 4))) %>%
+  gather(Stat, Values, 2:4) %>%
+  ggplot(aes(x=Values, y=as.factor(Year), fill=RSorPO)) + 
+  geom_density_ridges_gradient() +
+  labs(title="Lebron James stats (2003-2019)", y="Year",  
+       subtitle="Ridgeline plots - Points, Rebounds and Assists. Regular Season and Playoffs") +
+  facet_wrap(~Stat, scales="free_x") +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        legend.position="bottom",
+        legend.title=element_blank()) 
+```
+
+## Steals, Blocks and Turnovers
+
+Let's analyze some other important stats like steals, blocks and turnovers. We can study the distribution of their all-time career stats.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# All-Time career stats - Steals, Blocks and Turnovers
+allgames_stats %>%
+  select(STL, BLK, TOV, Player, RSorPO) %>%
+  rename(Steals=STL,
+         Blocks=BLK,
+         Turnovers=TOV) %>%
+  gather(Stats, Value, 1:3) %>%
+  ggplot(aes(x=Value, fill=Stats)) +
+  geom_density(alpha=0.5) +
+  facet_grid(Player ~ .) +
+  xlim(0, 7) +
+  labs(title="All-Time career stats", subtitle="Steals, Blocks and Turnovers", y="Density") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        axis.title.x=element_blank(),
+        legend.title=element_blank())
+```
+
+Curious distributions, they look like roller coasters!
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# 3D plot - Steals, Blocks and Turnovers
+plot_ly(allgames_stats, x=~STL, y=~BLK, z=~TOV) %>%
+  add_markers(color=~Player) %>%
+  layout(
+    title="Steals, Blocks and Turnoverss",
+    scene=list(
+      xaxis=list(title="Steals"),
+      yaxis=list(title="Blocks"),
+      zaxis=list(title="Turnovers")
+    ))
+```
+
+## 3P%, 2P% and FT% {.tabset .tabset-fade .tabset-pills}
+
+In this section we are going to display the same animated visualizations than before, but now to analyze the 3P% (3-Point Field Goal Percentage), 
+2P% (2-Point Field Goal Percentage) and FT% (Free Throw Percentage) over the seasons. 
+
+### Michael Jordan 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Michael Jordan stats (1984-2003) - 3P%, 2P% and FT%. Regular Season and Playoffs
+plot <- per_game_stats %>%
+  filter(Player=="Michael Jordan") %>%
+  select(Season, `3P%`, `2P%`, `FT%`, RSorPO) %>%
+  mutate(Season=as.numeric(substr(Season, 1, 4))) %>%
+  gather(Stats, Value, 2:4) %>%
+  accumulate_by(~Season) %>%
+  ggplot(aes(x=Season, y=Value, colour=RSorPO, group=RSorPO, frame=frame)) +
+  geom_line(size=1) +
+  geom_point() +
+  facet_grid(Stats ~ ., scales="free") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks=c(1984:1992, 1994:1997, 2001, 2002), labels=abbrev_x_jordan) +
+  labs(title="Michael Jordan stats (1984-2003)
+       3P%, 2P% and FT%. Regular Season and Playoffs") +
+  theme_bw() +
+  theme(axis.title.y=element_blank(), 
+        axis.title.x=element_blank(), 
+        axis.text.x=element_text(angle=45, hjust=1)) 
+
+# Create plotly graph
+ggplotly(plot, height=600, width=900, tooltip=c("x", "y", "colour", "frame")) %>%
+  animation_slider(hide=T) %>%
+  layout(xaxis=list(title="Season"), showlegend=FALSE)
+```
+
+### Kobe Bryant 
+  
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Kobe Bryant stats (1996-2016) - 3P%, 2P% and FT%. Regular Season and Playoffs
+plot <- per_game_stats %>%
+  filter(Player=="Kobe Bryant") %>%
+  select(Season, `3P%`, `2P%`, `FT%`, RSorPO) %>%
+  mutate(Season=as.numeric(substr(Season, 1, 4))) %>%
+  gather(Stats, Value, 2:4) %>%
+  accumulate_by(~Season) %>%
+  ggplot(aes(x=Season, y=Value, colour=RSorPO, group=RSorPO, frame=frame)) +
+  geom_line(size=1) +
+  geom_point() +
+  facet_grid(Stats ~ ., scales="free") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks=1996:2015, labels=abbrev_x_kobe) +
+  labs(title="Kobe Bryant stats (1996-2016)
+       3P%, 2P% and FT%. Regular Season and Playoffs") +
+  theme_bw() +
+  theme(axis.title.y=element_blank(), 
+        axis.title.x=element_blank(), 
+        axis.text.x=element_text(angle=45, hjust=1)) 
+
+# Create plotly graph
+ggplotly(plot, height=600, width=900, tooltip=c("x", "y", "colour", "frame")) %>%
+  animation_slider(hide=T) %>%
+  layout(xaxis=list(title="Season"), showlegend=FALSE)
+```
+  
+### Lebron James 
+  
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Lebron James stats (2003-2019) - 3P%, 2P% and FT%. Regular Season and Playoffs
+plot <- per_game_stats %>%
+  filter(Player=="Lebron James") %>%
+  add_row(Season="2003-04", RSorPO="Playoffs", .before=17) %>%
+  add_row(Season="2004-05", RSorPO="Playoffs", .before=18) %>%
+  add_row(Season="2018-19", RSorPO="Playoffs") %>%
+  select(Season, `3P%`, `2P%`, `FT%`, RSorPO) %>%
+  mutate(Season=as.numeric(substr(Season, 1, 4))) %>%
+  gather(Stats, Value, 2:4) %>%
+  accumulate_by(~Season) %>%
+  ggplot(aes(x=Season, y=Value, colour=RSorPO, group=RSorPO, frame=frame)) +
+  geom_line(size=1) +
+  geom_point(aes(colour=RSorPO, group=RSorPO)) +
+  facet_grid(Stats ~ ., scales="free") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_continuous(breaks=2003:2018, labels=abbrev_x_lebron) +
+  labs(title="Lebron James stats (2003-2019)
+       3P%, 2P% and FT%. Regular Season and Playoffs") +
+  theme_bw() +
+  theme(axis.title.y=element_blank(), 
+        axis.title.x=element_blank(), 
+        axis.text.x=element_text(angle=45, hjust=1)) 
+
+# Create plotly graph
+ggplotly(plot, height=600, width=900, tooltip=c("x", "y", "colour", "frame")) %>%
+  animation_slider(hide=T) %>%
+  layout(xaxis=list(title="Season"), showlegend=FALSE)
+```
+
+## Double-Doubles and Triple-Doubles {.tabset .tabset-fade .tabset-pills}
+
+How many Double-Doubles and Triple-Doubles have they achieved? First, some context information...
+
+In basketball, a double-double or triple-double is when a player accumulates ten or more (a double-digit total) in two or three of five statistical categories—points, rebounds, assists, steals, 
+and blocked shots—in a single game. The most common double-double combination is points and rebounds, followed by points and assists. The most common way to achieve a triple-double is through 
+points, rebounds, and assists. (**Reference**: https://en.wikipedia.org/wiki/Double-double_(basketball))  
+
+### Double-Doubles
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Double-Doubles
+allgames_stats %>%
+  filter((PTS>=10 & TRB>=10 & AST<10) | (PTS>=10 & TRB<10 & AST>=10) | ((PTS<10 & TRB>=10 & AST>=10))) %>%
+  group_by(Player, RSorPO) %>%
+  summarise(`Double-Doubles`=n()) %>%
+  mutate(Percentage=paste0(round(`Double-Doubles`/sum(`Double-Doubles`)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, `Double-Doubles`), y=`Double-Doubles`, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Double-Doubles", 
+       subtitle="Ten or more in two of the five statistics",
+       x="Player") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+### Triple-Doubles 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Triple-Doubles 
+allgames_stats %>%
+  filter(PTS>=10, TRB>=10, AST>=10) %>%
+  group_by(Player, RSorPO) %>%
+  summarise(`Triple-Doubles`=n()) %>%
+  mutate(Percentage=paste0(round(`Triple-Doubles`/sum(`Triple-Doubles`)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, `Triple-Doubles`, sum), y=`Triple-Doubles`, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Triple-Doubles", 
+       subtitle="Ten or more in three of the five statistics",
+       x="Player") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+## They scored more points against... {.tabset .tabset-fade .tabset-pills}
+
+What are their favorite rivals? Against which teams do they score more points? Let’s see…
+
+### Michael Jordan 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Michael Jordan - He scored more points against...(Regular Season and Playoffs)
+allgames_stats %>%
+  filter(Player=="Michael Jordan", Opp %in% c("MIL", "ATL", "IND", "PHI", "NJN",
+                                              "MIA", "WSB", "CHH", "UTA", "PHO")) %>%
+  group_by(Opp, RSorPO) %>%
+  summarise(Points=sum(PTS)) %>%
+  mutate(percent=paste0(round((Points/sum(Points))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Opp, -Points, sum), y=Points)) +
+  geom_bar(aes(fill=RSorPO), stat="identity", colour="black") +
+  geom_text(aes(label=percent, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Michael Jordan stats", 
+       subtitle="He has scored more points against... (Regular Season and Playoffs)",
+       x="Team") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank())
+```
+
+### Kobe Bryant 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Kobe Bryant - He scored more points against...(Regular Season and Playoffs)
+allgames_stats %>%
+  filter(Player=="Kobe Bryant", Opp %in% c("PHO", "SAS", "DEN", "SAC", "UTA",
+                                           "POR", "HOU", "MIN", "GSW", "LAC")) %>%
+  group_by(Opp, RSorPO) %>%
+  summarise(Points=sum(PTS)) %>%
+  mutate(percent=paste0(round((Points/sum(Points))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Opp, -Points, sum), y=Points)) +
+  geom_bar(aes(fill=RSorPO), stat="identity", colour="black") +
+  geom_text(aes(label=percent, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Kobe Bryant stats", 
+       subtitle="He has scored more points against... (Regular Season and Playoffs)",
+       x="Team") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank())
+```
+
+### Lebron James 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Lebron James - He scored more points against...(Regular Season and Playoffs)
+allgames_stats %>%
+  filter(Player=="Lebron James", Opp %in% c("BOS", "IND", "CHI", "TOR", "DET",
+                                            "ATL", "WAS", "MIL", "NYK", "GSW")) %>%
+  group_by(Opp, RSorPO) %>%
+  summarise(Points=sum(PTS)) %>%
+  mutate(percent=paste0(round((Points/sum(Points))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Opp, -Points, sum), y=Points)) +
+  geom_bar(aes(fill=RSorPO), stat="identity", colour="black") +
+  geom_text(aes(label=percent, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Lebron James stats", 
+       subtitle="He has scored more points against... (Regular Season and Playoffs)",
+       x="Team") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank())
+```
+
+## They scored less points against... {.tabset .tabset-fade .tabset-pills}
+
+And now, the opposite question: Against which teams do they score less points? 
+
+### Michael Jordan  
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Michael Jordan - He scored less points against...(Regular Season and Playoffs)
+allgames_stats %>%
+  filter(Player=="Michael Jordan", Opp %in% c("KCK", "MEM", "NOH", "CHI", "WAS",
+                                              "VAN", "TOR", "MIN", "LAC", "DAL")) %>%
+  group_by(Opp, RSorPO) %>%
+  summarise(Points=sum(PTS)) %>%
+  mutate(percent=paste0(round((Points/sum(Points))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Opp, Points, sum), y=Points)) +
+  geom_bar(aes(fill=RSorPO), stat="identity", colour="black") +
+  geom_text(aes(label=percent, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Michael Jordan stats", 
+       subtitle="He has scored less points against... (Regular Season and Playoffs)",
+       x="Team") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank())
+```
+
+### Kobe Bryant 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Kobe Bryant - He scored less points against...(Regular Season and Playoffs)
+allgames_stats %>%
+  filter(Player=="Kobe Bryant", Opp %in% c("WSB", "BRK", "CHO", "NOP", "CHH",
+                                           "NOK", "VAN", "CHA", "ATL", "NJN")) %>%
+  group_by(Opp, RSorPO) %>%
+  summarise(Points=sum(PTS)) %>%
+  mutate(percent=paste0(round((Points/sum(Points))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Opp, Points, sum), y=Points)) +
+  geom_bar(aes(fill=RSorPO), stat="identity", colour="black") +
+  geom_text(aes(label=percent, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Kobe Bryant stats", 
+       subtitle="He has scored less points against... (Regular Season and Playoffs)",
+       x="Team") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank())
+```
+
+### Lebron James 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Lebron James - He scored less points against...(Regular Season and Playoffs)
+allgames_stats %>%
+  filter(Player=="Lebron James", Opp %in% c("NOK", "SEA", "NOP", "CLE", "NOH",
+                                            "CHO", "OKC", "LAC", "SAC", "HOU")) %>%
+  group_by(Opp, RSorPO) %>%
+  summarise(Points=sum(PTS)) %>%
+  mutate(percent=paste0(round((Points/sum(Points))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Opp, Points, sum), y=Points)) +
+  geom_bar(aes(fill=RSorPO), stat="identity", colour="black") +
+  geom_text(aes(label=percent, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Lebron James stats", 
+       subtitle="He has scored less points against... (Regular Season and Playoffs)",
+       x="Team") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank())
+```
+
+## Player's impact on his team
+
+It may be interesting to know if the team relied heavily on these players. We are going to compute the percentage of won and lost matches when they scored 15 points or more,
+and then the same percentage in matches where they scored less than 15 points.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Lost and won matches (%) when they scored more than 15 points
+plot1 <- allgames_stats %>%
+  filter(PTS>15) %>%
+  mutate(Result=recode(Result, W="Win", L="Lost")) %>%
+  group_by(Result, Player) %>%
+  count(Result) %>%
+  group_by(Player) %>%
+  mutate(Percentage=paste0(round(n/sum(n)*100, 2), "%")) %>%
+  ggplot(aes(x=Player, y=n, fill=Result)) +
+  geom_bar(stat="identity", colour="black") +
+  geom_text(aes(label=Percentage, group=Result), position=position_stack(vjust=0.5)) +
+  labs(title="Lost and won matches (%)", subtitle="when they scored more than 15 points") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.title=element_blank())
+
+# Lost and won matches (%) when they scored less than 15 points
+plot2 <- allgames_stats %>%
+  filter(PTS<15) %>%
+  mutate(Result=recode(Result, W="Win", L="Lost")) %>%
+  group_by(Result, Player) %>%
+  count(Result) %>%
+  group_by(Player) %>%
+  mutate(Percentage=paste0(round(n/sum(n)*100, 2), "%")) %>%
+  ggplot(aes(x=Player, y=n, fill=Result)) +
+  geom_bar(stat="identity", colour="black") +
+  geom_text(aes(label=Percentage, group=Result), position=position_stack(vjust=0.5)) +
+  labs(title="Lost and won matches (%)", subtitle="when they scored less than 15 points") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        legend.title=element_blank())
+
+# Subplot
+ggarrange(plot1, plot2, ncol=2, common.legend=TRUE, legend="bottom")
+```
+
+In the case of Kobe Bryant there’s not much difference! It seems that the team didn’t suffer too much when he wasn’t so efficient. On the other hand, 
+there's more Jordan and Lebron dependency on their teams.  
+
+## Totals stats {.tabset .tabset-fade .tabset-pills}
+
+Who has the best total stats?
+
+### Points 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Totals stats comparisons - Points
+totals_stats %>%
+  group_by(Player, RSorPO) %>%
+  summarize(Points=sum(PTS)) %>%
+  mutate(Percentage=paste0(round(Points/sum(Points)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, Points), y=Points, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Totals", 
+       subtitle="How many points have they scored in their entire career?",
+       x="Player", y="Points") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+### Rebounds 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Totals stats comparisons - Rebounds
+totals_stats %>%
+  group_by(Player, RSorPO) %>%
+  summarize(Rebounds=sum(TRB)) %>%
+  mutate(Percentage=paste0(round(Rebounds/sum(Rebounds)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, Rebounds), y=Rebounds, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Totals", 
+       subtitle="How many rebounds have they caught in their entire career?",
+       x="Player", y="Rebounds") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+### Assists 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Totals stats comparisons - Assists
+totals_stats %>%
+  group_by(Player, RSorPO) %>%
+  summarize(Assists=sum(AST)) %>%
+  mutate(Percentage=paste0(round(Assists/sum(Assists)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, Assists), y=Assists, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Totals", 
+       subtitle="How many assists have they made in their entire career?",
+       x="Player", y="Assists") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+### Blocks 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Totals stats comparisons - Blocks
+totals_stats %>%
+  group_by(Player, RSorPO) %>%
+  summarize(Blocks=sum(BLK)) %>%
+  mutate(Percentage=paste0(round(Blocks/sum(Blocks)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, Blocks), y=Blocks, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Totals", 
+       subtitle="How many blocks have they made in their entire career?",
+       x="Player", y="Blocks") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+### Steals 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Totals stats comparisons - Steals
+totals_stats %>%
+  group_by(Player, RSorPO) %>%
+  summarize(Steals=sum(STL)) %>%
+  mutate(Percentage=paste0(round(Steals/sum(Steals)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, Steals), y=Steals, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Totals", 
+       subtitle="How many steals have they made in their entire career?",
+       x="Player", y="Steals") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+### Turnovers
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Totals stats comparisons - Turnovers
+totals_stats %>%
+  group_by(Player, RSorPO) %>%
+  summarize(Turnovers=sum(TOV)) %>%
+  mutate(Percentage=paste0(round(Turnovers/sum(Turnovers)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, Turnovers), y=Turnovers, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Totals", 
+       subtitle="Who is the player with the most turnovers?",
+       x="Player", y="Turnovers") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+### Personal fouls
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Totals stats comparisons - Personal fouls
+totals_stats %>%
+  group_by(Player, RSorPO) %>%
+  summarize(`Personal fouls`=sum(PF)) %>%
+  mutate(Percentage=paste0(round(`Personal fouls`/sum(`Personal fouls`)*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Player, `Personal fouls`), y=`Personal fouls`, fill=RSorPO)) +
+  geom_bar(stat="identity", color="black") +
+  geom_text(aes(label=Percentage, group=RSorPO), position=position_stack(vjust=0.5)) +
+  labs(title="Totals", 
+       subtitle="Who is the player with the most personal fouls?",
+       x="Player", y="Personal fouls") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+## Salaries {.tabset .tabset-fade .tabset-pills}
+
+### Michael Jordan 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Salaries - Michael Jordan 
+salaries %>%
+  mutate(`Salary (In Millions)`=round(as.numeric(substring(Salary, 2))/1000000, 2)) %>%
+  mutate(Salary2=paste0("$", round(as.numeric(substring(Salary, 2))/1000000, 2), "M")) %>%
+  filter(Player=="Michael Jordan") %>%
+  ggplot(aes(x=Season, y=`Salary (In Millions)`)) +
+  geom_bar(aes(fill=`Salary (In Millions)`), stat="identity", color="black", show.legend=FALSE) +
+  scale_fill_gradient(low="white", high="red3") +
+  geom_label(aes(label=Salary2), label.size=0.14) +
+  labs(title="Michael Jordan salary") +
+  theme_bw() +
+  coord_flip()
+```
+
+### Kobe Bryant
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Salaries - Kobe Bryant
+salaries %>%
+  mutate(`Salary (In Millions)`=round(as.numeric(substring(Salary, 2))/1000000, 2)) %>%
+  mutate(Salary2=paste0("$", round(as.numeric(substring(Salary, 2))/1000000, 2), "M")) %>%
+  filter(Player=="Kobe Bryant") %>%
+  ggplot(aes(x=Season, y=`Salary (In Millions)`)) +
+  geom_bar(aes(fill=`Salary (In Millions)`), stat="identity", color="black", show.legend=FALSE) +
+  scale_fill_gradient(low="mediumpurple3", high="orange2") +
+  geom_label(aes(label=Salary2), label.size = 0.14) +
+  labs(title="Kobe Bryant salary") +
+  theme_bw() +
+  coord_flip()
+```
+
+### Lebron James
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Salaries - Lebron James
+salaries %>%
+  mutate(`Salary (In Millions)`=round(as.numeric(substring(Salary, 2))/1000000, 2)) %>%
+  mutate(Salary2=paste0("$", round(as.numeric(substring(Salary, 2))/1000000, 2), "M")) %>%
+  filter(Player=="Lebron James") %>%
+  ggplot(aes(x=Season, y=`Salary (In Millions)`)) +
+  geom_bar(aes(fill=Team), stat="identity", color="black") +
+  geom_label(aes(label=Salary2), label.size = 0.14) +
+  labs(title="Lebron James salary") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank()) +
+  coord_flip()
+```
+
+# **Summary**
+
+**WORK IN PROGRESS. I still have to add more visualizations and explanations, so stay tuned! :)** 
+
+<style>
+div.blue { background-color:#E28484; border-radius: 5px; padding: 10px;}
+</style>
+<div class="blue">
+And that's all, thank you for checking out my kernel! I've had a great time doing it and I have learned a lot. Please upvote or comment if you like it! 
+</div>
+<br>
+
+Let's finish with another great quote from Michael Jordan!
+                                                                    
+<center><img
+src="https://i.imgur.com/JlZDSCO.png">
+</center>                                                                    
+<div style="text-align: right"> **Reference:** https://www.pinterest.es/pin/479914904023993256/?lp=true </div>
+
+<p style="font-family: times, serif; font-size:18pt; font-style:italic">
+“I can accept failure, everyone fails at something. But I can't accept not trying.” 
+</p>
+<div style="text-align: right"> **Michael Jordan** </div>
+
+# **Citations for used packages**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+R Core Team (2018). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/.
+
+Alboukadel Kassambara (2018). ggpubr: 'ggplot2' Based Publication Ready Plots. R package version 0.2. https://CRAN.R-project.org/package=ggpubr
+
+Carson Sievert (2018) plotly for R. https://plotly-r.com
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Yihui Xie (2015) Dynamic Documents with R and knitr. 2nd edition. Chapman and Hall/CRC. ISBN 978-1498716963
+
+Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, editors, Implementing Reproducible Computational Research. Chapman and Hall/CRC. ISBN 978-1466561595
+
+Claus O. Wilke (2018). ggridges: Ridgeline Plots in 'ggplot2'. R package version 0.5.1. https://CRAN.R-project.org/package=ggridges
+
+Simon Garnier (2018). viridis: Default Color Maps from 'matplotlib'. R package version 0.5.1. https://CRAN.R-project.org/package=viridis

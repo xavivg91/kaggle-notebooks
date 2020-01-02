@@ -1,0 +1,514 @@
+---
+title: "**Analyzing a Pokémon data set**"
+author: Xavier Vivancos García 
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    theme: cosmo
+    highlight: tango
+---
+
+# **Loading data** {.tabset .tabset-fade .tabset-pills}
+
+```{r message=FALSE}
+# Load libraries
+library(tidyverse)
+library(gridExtra)
+library(knitr)
+
+# Read the Pokémon stats
+pokemon <- read.csv("../input/Pokemon.csv")
+
+# Express the Generation column as a factor
+pokemon$Generation <- as.factor(pokemon$Generation)
+```
+
+Let's get an idea of what we're working with. We see that there are duplicate numbers in the `X.` column. Those rows correspond to Mega Evolutions or different versions of the same Pokémon. 
+
+## First rows 
+```{r}
+# First 10 rows 
+kable(head(pokemon))
+```
+
+## Last rows 
+```{r}
+# Last rows 
+kable(tail(pokemon))
+```
+
+## Summary 
+```{r}
+# Summary
+kable(summary(pokemon))
+```
+
+## Structure
+```{r}
+# Structure 
+str(pokemon)
+```
+
+# **Data Analysis** 
+
+## Types
+
+First let's see the different types of Pokémon. 
+
+```{r}
+# Primary types
+levels(pokemon$Type.1)
+
+# Secondary types
+levels(pokemon$Type.2)
+```
+
+Is this really necessary? Come on dude, you should already know them! Notice that we have one more level in the secondary types. Why? Because a Pokémon may have either one or two types. For the Pokémon with only one type we have the empty level in the `Type.2` column. 
+
+```{r fig.align='center'}
+# How many Pokémon of each primary type are there?
+ggplot(pokemon, aes(x=fct_infreq(Type.1))) + 
+  geom_bar(fill="#99CCFF", colour="black") +
+  labs(x="Type 1", y="Frequency",
+       title="How many Pokémon of each primary type there are?") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+
+# How many Pokémon of each secondary type are there?
+ggplot(pokemon, aes(x=fct_infreq(Type.2))) +
+  geom_bar(fill="#99CCFF", colour="black") +
+  labs(x="Type 2", y="Frequency",
+       title="How many Pokémon of each secondary type there are?") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+```
+
+As we see, most Pokémon have only one type. Can we calculate the number of Pokémon for each type combination? Of course! We can create a contingency table containing the counts of each combination of the levels of the variables involved (`Type.1` and `Type.2`). 
+
+```{r fig.align='center'}
+# Counts of each type combination
+types <- pokemon %>%
+  group_by(Type.1, Type.2) %>%
+  summarise(count=n()) 
+
+# Contingency table of Type.1 and Type.2
+ggplot(types, aes(x=Type.1,y=Type.2)) +
+  geom_tile(aes(fill=count), show.legend=FALSE) +
+  geom_text(aes(label=count)) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="Type 1", y="Type 2",
+       title="Number of Pokémon for each type combination") +   
+  scale_fill_gradient(low="white", high="red") 
+```
+
+The last row correspond to Pokémon with one type. For example, there are 27 pure Electric-type Pokémon. 
+
+## Stats 
+
+Let's start with some simple histograms to represent the distribution of the following stats: HP, Attack, Defense, Special Attack, Special Defense, and Speed.
+
+```{r fig.align='center'}
+# Histogram of HP
+p1 <- ggplot(pokemon, aes(x=HP)) +
+  geom_histogram(binwidth=4, fill="palegreen", colour="black") + 
+  labs(x="HP", y="Frequency") +
+  theme_bw()
+
+# Histogram of Attack
+p2 <- ggplot(pokemon, aes(x=Attack)) +
+  geom_histogram(binwidth=4, fill="palegreen", colour="black") + 
+  labs(x="Attack", y="Frequency") +
+  theme_bw()
+
+# Histogram of Defense
+p3 <- ggplot(pokemon, aes(x=Defense)) +
+  geom_histogram(binwidth=4, fill="palegreen", colour="black") + 
+  labs(x="Defense", y="Frequency") +
+  theme_bw()
+
+# Histogram of Special Attack
+p4 <- ggplot(pokemon, aes(x=Sp..Atk)) +
+  geom_histogram(binwidth=4, fill="palegreen", colour="black") + 
+  labs(x="Special Attack", y="Frequency") +
+  theme_bw()
+
+# Histogram of Special Defense
+p5 <- ggplot(pokemon, aes(x=Sp..Def)) +
+  geom_histogram(binwidth=4, fill="palegreen", colour="black") + 
+  labs(x="Special Defense", y="Frequency") +
+  theme_bw()
+
+# Histogram of Speed
+p6 <- ggplot(pokemon, aes(x=Speed)) +
+  geom_histogram(binwidth=4, fill="palegreen", colour="black") + 
+  labs(x="Speed", y="Frequency") +
+  theme_bw()
+
+# Histogram of Total 
+p7 <- ggplot(pokemon, aes(x=Total)) +
+  geom_histogram(binwidth=4, fill="palegreen", colour="black") + 
+  labs(x="Total", y="Frequency") +
+  theme_bw()
+
+# Subplot with all the histograms 
+grid.arrange(p1, p2, p3, p4, p5, p6, p7,
+             layout_matrix=cbind(c(1,4,7), c(2,5,7), c(3,6,7)))
+```
+
+Are the Legendary Pokémon much better than the normal ones? We can compare the density plots to see the difference between their stats.  
+
+```{r fig.align='center'}
+# Density plot of HP
+p8 <- ggplot(pokemon, aes(x=HP, fill=Legendary)) +
+  geom_density(alpha=0.5) +
+  labs(x="HP", y="Density") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Density plot of Attack
+p9 <- ggplot(pokemon, aes(x=Attack, fill=Legendary)) +
+  geom_density(alpha=0.5) +
+  labs(x="Attack", y="Density") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Density plot of Defense
+p10 <- ggplot(pokemon, aes(x=Defense, fill=Legendary)) +
+  geom_density(alpha=0.5) +
+  labs(x="Defense", y="Density") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Density plot of Special Attack
+p11 <- ggplot(pokemon, aes(x=Sp..Atk, fill=Legendary)) +
+  geom_density(alpha=0.5) +
+  labs(x="Special Attack", y="Density") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Density plot of Special Defense
+p12 <- ggplot(pokemon, aes(x=Sp..Def, fill=Legendary)) +
+  geom_density(alpha=0.5) +
+  labs(x="Special Defense", y="Density") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Density plot of Speed
+p13 <- ggplot(pokemon, aes(x=Speed, fill=Legendary)) +
+  geom_density(alpha=0.5) +
+  labs(x="Speed", y ="Density") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Density plot of Total
+p14 <- ggplot(pokemon, aes(x=Total, fill=Legendary)) +
+  geom_density(alpha=0.5) +
+  theme_bw() +
+  labs(x="Total", y="Density") 
+
+# Subplot with all the density plots 
+grid.arrange(p8, p9, p10, p11, p12, p13, p14,
+             layout_matrix=cbind(c(1,4,7), c(2,5,7), c(3,6,7)))
+```
+
+It is clear that Legendary Pokémon have greater statistics. What about the boxplots? It may be interesting to see the statistical distribution according to the Pokémon's type. 
+
+```{r fig.align='center'}
+# Boxplot of HP
+ggplot(pokemon %>% group_by(Type.1) %>% mutate(med=median(HP)),
+       aes(x=reorder(Type.1, HP, FUN=median), y=HP)) +
+  geom_boxplot(aes(fill=med)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Type 1",
+       title="Boxplot of HP") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Boxplot of Attack
+ggplot(pokemon %>% group_by(Type.1) %>% mutate(med=median(Attack)),
+       aes(x=reorder(Type.1, Attack, FUN=median), y=Attack)) +
+  geom_boxplot(aes(fill=med)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Type 1",
+       title="Boxplot of Attack") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Boxplot of Defense
+ggplot(pokemon %>% group_by(Type.1) %>% mutate(med=median(Defense)),
+       aes(x=reorder(Type.1, Defense, FUN=median), y=Defense)) +
+  geom_boxplot(aes(fill=med)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Type 1",
+       title="Boxplot of Defense") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Boxplot of Special Attack
+ggplot(pokemon %>% group_by(Type.1) %>% mutate(med=median(Sp..Atk)),
+       aes(x=reorder(Type.1, Sp..Atk, FUN=median), y=Sp..Atk)) +
+  geom_boxplot(aes(fill=med)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Type 1",
+       title="Boxplot of Special Attack") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Boxplot of Special Defense
+ggplot(pokemon %>% group_by(Type.1) %>% mutate(med=median(Sp..Def)),
+       aes(x=reorder(Type.1, Sp..Def, FUN=median), y=Sp..Def)) +
+  geom_boxplot(aes(fill=med)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Type 1",
+       title="Boxplot of Special Defense") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Boxplot of Speed
+ggplot(pokemon %>% group_by(Type.1) %>% mutate(med=median(Speed)),
+       aes(x=reorder(Type.1, Speed, FUN=median), y=Speed)) +
+  geom_boxplot(aes(fill=med)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Type 1",
+       title="Boxplot of Speed") +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Boxplot of Total
+ggplot(pokemon %>% group_by(Type.1) %>% mutate(med=median(Total)),
+       aes(x=reorder(Type.1, Total, FUN=median), y=Total)) +
+  geom_boxplot(aes(fill=med)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Type 1",
+       title="Boxplot of Total") +
+  theme_bw() +
+  theme(legend.position="none")
+```
+
+The outliers in the boxplots correspond to Pokémon (normally Legendary or Mega Evolutions) with impressive stats numerically distants from the rest of the data. For example, Regirock is an outlier in the defense boxplot (200 points in defense!). 
+
+```{r fig.align='center'}
+# Density plot of Total
+ ggplot(pokemon, aes(x=Total)) +
+   geom_density(alpha=0.5, aes(fill=Type.1)) +
+   facet_wrap(~Type.1) + 
+   labs(x="Total", y="Density") +
+   theme_bw() +
+   theme(axis.text.x=element_blank(), 
+         axis.ticks.x=element_blank(),
+         legend.position="none")
+```
+
+Analyzing the boxplots and the density plots, we can say that the Dragon-type Pokémon are statistically superior from the rest. Another question to answer: In which generation the stats are better?
+
+```{r fig.align='center'}
+# Average Total for each generation 
+pokemon %>%
+  group_by(Generation) %>%
+  summarize(Total=mean(Total)) %>%
+  ggplot(aes(x=Generation, y=Total, group=1)) +
+    geom_line(colour="red") +
+    geom_point() +
+    labs(y="Average Total",
+         title="Average Total for each generation") +
+    theme_bw() 
+```
+
+The fourth generation has the best average stats, probably because it is the generation with more Legendary Pokémon. What happens if we split up the Total stat?
+
+```{r fig.align='center'}
+# Average stats for each generation 
+pokemon %>%
+  group_by(Generation) %>%
+  summarize(HP=mean(HP),
+            Attack=mean(Attack),
+            Defense=mean(Defense),
+            Sp..Atk=mean(Sp..Atk),
+            Sp..Def=mean(Sp..Def),
+            Speed=mean(Speed)) %>%
+  gather(Stats, value, 2:7) %>%
+  ggplot(aes(x=Generation, y=value, group=1)) +
+    geom_line(colour="red") +
+    geom_point() +
+    facet_wrap(~Stats) +
+    labs(y="Average Stats") +
+    theme_bw() 
+```
+
+To end this section we are going to reveal the Top 10 Best Pokémon for each stat. Are you nervous? Let's begin!
+
+```{r fig.align='center'}
+# Top 10 HP Pokémon 
+pokemon %>%
+  select(Name, HP) %>%
+  arrange(desc(HP)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(Name, HP), y=HP)) +
+  geom_bar(stat="identity", aes(fill=HP), colour="black", show.legend=FALSE) +
+  geom_label(aes(label=HP)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Name", title="Top 10 HP Pokémon") +
+  theme_bw() 
+
+# Top 10 Attack Pokémon 
+pokemon %>%
+  select(Name, Attack) %>%
+  arrange(desc(Attack)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(Name, Attack), y=Attack)) +
+  geom_bar(stat="identity", aes(fill=Attack), colour="black", show.legend=FALSE) +
+  geom_label(aes(label=Attack)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Name", title="Top 10 Attack Pokémon") +
+  theme_bw() 
+
+# Top 10 Defense Pokémon
+pokemon %>%
+  select(Name, Defense) %>%
+  arrange(desc(Defense)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(Name, Defense), y=Defense)) +
+  geom_bar(stat="identity", aes(fill=Defense), colour="black", show.legend=FALSE) +
+  geom_label(aes(label=Defense)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Name", title="Top 10 Defense Pokémon") +
+  theme_bw() 
+
+# Top 10 Special Attack Pokémon
+pokemon %>%
+  select(Name, Sp..Atk) %>%
+  arrange(desc(Sp..Atk)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(Name, Sp..Atk), y=Sp..Atk)) +
+  geom_bar(stat="identity", aes(fill=Sp..Atk), colour="black", show.legend=FALSE) +
+  geom_label(aes(label=Sp..Atk)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Name", title="Top 10 Special Attack Pokémon") +
+  theme_bw() 
+
+# Top 10 Special Defense Pokémon
+pokemon %>%
+  select(Name, Sp..Def) %>%
+  arrange(desc(Sp..Def)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(Name, Sp..Def), y=Sp..Def)) +
+  geom_bar(stat="identity", aes(fill=Sp..Def), colour="black", show.legend=FALSE) +
+  geom_label(aes(label=Sp..Def)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Name", title="Top 10 Special Defense Pokémon") +
+  theme_bw() 
+
+# Top 10 Speed Pokémon
+pokemon %>%
+  select(Name, Speed) %>%
+  arrange(desc(Speed)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(Name, Speed), y=Speed)) +
+  geom_bar(stat="identity", aes(fill=Speed), colour="black", show.legend=FALSE) +
+  geom_label(aes(label=Speed)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  coord_flip() +
+  labs(x="Name", title="Top 10 Speed Pokémon") +
+  theme_bw() 
+
+# Top 10 Total Pokémon
+pokemon %>%
+  select(Name, Total) %>%
+  arrange(desc(Total)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(Name, Total), y=Total)) +
+  geom_bar(stat="identity", aes(fill=Total), colour="black", show.legend=FALSE) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  geom_label(aes(label=Total)) +
+  coord_flip() +
+  labs(x="Name", title="Top 10 Total Pokémon") +
+  theme_bw() 
+```
+
+## Generations 
+
+How many Pokémon are there per generation?
+
+```{r fig.align='center'}
+# Number of Pokémon per generation (including Mega Evolutions)
+pokemon %>%
+  count(Generation) %>%
+  ggplot(aes(x=Generation, y=n)) + 
+  geom_bar(stat="identity", fill="lavender", colour="black") +
+  geom_label(aes(label=n)) +
+  labs(x="Generation", y="Number of Pokémon",
+       title="Number of Pokémon per generation") +
+  theme_bw() 
+```
+
+The most number of Pokémon are from the first generation. Can we specify how many Pokémon of each primary type are there per generation? 
+
+```{r fig.align='center'}
+# Number of Pokémon of each primary type per generation
+ggplot(pokemon, aes(x=Type.1, fill=Generation)) + 
+  geom_bar() +
+  labs(x="Generation", y="Number of Pokémon",
+       title="Number of Pokémon of each primary type per generation") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1))
+```
+
+And the number of Pokémon for every type combination per generation? For example, how many Bug/Poison Pokémon are there in the second generation? It seems very complicated to calculate, but we can use the function `ftable()`.
+
+```{r}
+# The ftable is too large! We only show the type combinations with Bug as a primary type
+ head(ftable(pokemon[, c("Type.1", "Type.2", "Generation")]), n=19)
+```
+
+## Legendary 
+
+How many Legendary Pokémon are there in relation to all of the Pokémon in our data set?
+
+```{r}
+# Counts of Legendary Pokémon
+table(pokemon$Legendary)
+```
+
+Only 65 Pokémon (8.8%) are Legendary! Which generation has more Legendary Pokémon? And less? Let's check it!
+
+```{r fig.align='center'}
+# Number of Legendary Pokémon per generation
+ggplot(pokemon, aes(x=Generation, fill=Legendary)) + 
+  geom_bar(position="dodge") +
+  labs(x="Generation", y="Number of Pokémon",
+       title="Number of Legendary Pokémon per generation") +
+  theme_bw() 
+```
+
+# **Summary** 
+
+It has been a pleasure to make this kernel! I have learned a lot, specially about data manipulation and visualization through the tools dplyr and ggplot2 from the tidyverse package. 
+It might be interesting to re-do the analysis without considering Mega Evolutions and Legendary Pokémon
+
+# **References**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Baptiste Auguie (2017). gridExtra: Miscellaneous Functions for "Grid" Graphics. R package version 2.3. https://CRAN.R-project.org/package=gridExtra
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Yihui Xie (2015) Dynamic Documents with R and knitr. 2nd edition. Chapman and Hall/CRC. ISBN 978-1498716963
+
+Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, 
+editors, Implementing Reproducible Computational Research. Chapman and Hall/CRC. ISBN 978-1466561595

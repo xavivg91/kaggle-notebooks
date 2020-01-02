@@ -1,0 +1,525 @@
+---
+title: "**Tutorial: Image Compression using PCA**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    code_folding: hide
+    theme: cosmo
+    highlight: tango
+---
+ 
+<center><img
+src="https://i.imgur.com/LooQL9x.png">
+</center>    
+    
+# **Introduction**
+
+Hi! In this kernel we are going to use the stadistical method PCA (Principal Component Analysis) to compress images. What is it? PCA is mathematically defined as an orthogonal linear transformation
+that transforms the data to a new coordinate system such that the greatest variance by some projection of the data comes to lie on the first coordinate (called the first principal component), 
+the second greatest variance on the second coordinate, and so on. In other words, we convert a set of observations of possibly correlated variables into a set of values of linearly uncorrelated 
+variables called principal components (**Reference**: https://en.wikipedia.org/wiki/Principal_component_analysis). 
+
+To sum up, the aim is to explain as much data variation as possible while discarding highly correlated variables. Before moving to the image compression, let's see in detail how this statistical
+technique works.
+
+In this kernel we are going to see one interesting application of this stadistical method (image compression), but it has many others in different fields: quantitative finance 
+or neuroscience, for example.
+
+# **Load libraries**
+
+First we need to load some libraries.
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(tidyverse)
+library(jpeg)
+library(factoextra)
+library(knitr)
+```
+
+# **Background mathematics**
+
+To do this section I'm going to use the article "[A tutorial on principal components analysis](http://www.cs.otago.ac.nz/cosc453/student_tutorials/principal_components.pdf)" 
+by Lindsay I Smith as a reference. 
+
+## Data {.tabset .tabset-fade .tabset-pills}
+
+Let's see an example to study how this algorithm works. The following table only contains two dimensions: $x$ and $y$. We are going to use a reduced data set to simplify the calculations and
+provide plots to show what the PCA analysis is doing at each step.
+
+<center>
+
+|  $x$   |  $y$   | 
+|:-------|:-------|
+| 2.5    | 2.4    | 
+| 0.5    | 0.7    |   
+| 2.2    | 2.9    |  
+| 1.9    | 2.2    | 
+| 3.1    | 3      |   
+| 2.3    | 2.7    |
+| 2      | 1.6    | 
+| 1      | 1.1    | 
+| 1.5    | 1.6    | 
+| 1.1    | 0.9    | 
+
+</center> 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Data points
+x <- c(2.5, 0.5, 2.2, 1.9, 3.1, 2.3, 2, 1, 1.5, 1.1)
+y <- c(2.4, 0.7, 2.9, 2.2, 3, 2.7, 1.6, 1.1, 1.6, 0.9)
+
+# Data frame
+data <- data.frame(x, y)
+
+# Scatter plot
+data %>%
+  ggplot(aes(x,y)) +
+  geom_point(size=2, shape=3, color="blue") +
+  theme_bw() +
+  labs(title="Original data points")
+```
+
+### Stucture
+```{r message=FALSE, warning=FALSE}
+# Structure
+str(data)
+```
+
+### Summary
+```{r message=FALSE, warning=FALSE}
+# Summary
+summary(data)
+```
+
+### First rows
+```{r message=FALSE, warning=FALSE}
+# First rows 
+head(data)
+```
+
+### Last rows
+```{r message=FALSE, warning=FALSE}
+# Last rows 
+tail(data)
+```
+
+## Substract the mean 
+
+First, we have to subtract the mean from each of the data dimensions. All the $x$ values have $\bar{x}$ (the mean of the $x$ values of all the data points) subtracted, and all the $y$ values 
+have $\bar{y}$ subtracted from them.
+
+So we have to compute $(x-\bar{x})$ and $(y-\bar{y})$, where $\bar{x}=\frac{\sum_{i=1}^{n}x_i}{n}$ and $\bar{y}=\frac{\sum_{i=1}^{n}y_i}{n}$.
+
+<center>
+
+|  $x$   |  $y$   | $(x-\bar{x})$   |  $(y-\bar{y})$   |
+|:-------|:-------|:----------------|:-----------------|
+| 2.5    | 2.4    | 0.69            |0.49              |
+| 0.5    | 0.7    | -1.31           |-1.21             |
+| 2.2    | 2.9    | 0.39            |0.99              |
+| 1.9    | 2.2    | 0.09            |0.29              |
+| 3.1    | 3      | 1.29            |1.09              |
+| 2.3    | 2.7    | 0.49            |0.79              |
+| 2      | 1.6    | 0.19            |-0.31             |
+| 1      | 1.1    | -0.81           |-0.81             |
+| 1.5    | 1.6    | -0.31           |-0.31             |
+| 1.1    | 0.9    | -0.71           |-1.01             |
+
+</center> 
+
+This produces a data set whose mean is zero.
+
+## Calculate the covariance matrix
+
+The aim of the covariance matrix calculation is usually to see if there is any relationship between the dimensions. The covariance matrix for this 2 dimensional data set can be expressed as 
+
+\[
+C=
+\begin{pmatrix}
+    cov(x, x) & cov(x, y) \\
+    cov(y, x) & cov(y, y)  
+\end{pmatrix}
+\]
+
+where 
+
+* $cov(x, y)=cov(y, x)= \frac{\sum_{i=1}^{n}(x_i-\bar{x})(y_i-\bar{y})}{n-1}$
+
+* $cov(x, x)= \frac{\sum_{i=1}^{n}(x_i-\bar{x})(x_i-\bar{x})}{n-1}=\frac{\sum_{i=1}^{n}(x_i-\bar{x})^2}{n-1}= var(x)$
+
+* $cov(y, y)= \frac{\sum_{i=1}^{n}(y_i-\bar{y})(y_i-\bar{y})}{n-1}= \frac{\sum_{i=1}^{n}(y_i-\bar{y})^2}{n-1}= var(y)$
+
+Covariance is always measured between 2 dimensions. If you calculate the covariance between one dimension and itself, you get the
+variance. Let's make all the calculations:
+
+<center>
+
+|  $x$   |  $y$   | $(x-\bar{x})$   |  $(y-\bar{y})$   |$(x-\bar{x})(y-\bar{y})$ |$(x-\bar{x})^2$   |$(y-\bar{y})^2$ |
+|:-------|:-------|:----------------|:-----------------|:------------------------|:-----------------|:---------------|
+| 2.5    | 2.4    | 0.69            |0.49              | 0.3381                  |0.4761            |0.2401          |
+| 0.5    | 0.7    | -1.31           |-1.21             |1.5851                   |1.7161            |1.4641          |
+| 2.2    | 2.9    | 0.39            |0.99              |0.3861                   |0.1521            |0.9801          |
+| 1.9    | 2.2    | 0.09            |0.29              |0.0261                   |0.0081            |0.0841          |
+| 3.1    | 3      | 1.29            |1.09              |1.4061                   |1.6641            |1.1881          |
+| 2.3    | 2.7    | 0.49            |0.79              |0.3871                   |0.2401            |0.6241          |
+| 2      | 1.6    | 0.19            |-0.31             |-0.0589                  |0.0361            |0.0961          |
+| 1      | 1.1    | -0.81           |-0.81             |0.6561                   |0.6561            |0.6561          |
+| 1.5    | 1.6    | -0.31           |-0.31             |0.0961                   |0.0961            |0.0961          |
+| 1.1    | 0.9    | -0.71           |-1.01             |0.7171                   |0.5041            |1.0201          |
+
+</center> 
+
+With these values we can obtain easily the covariance matrix:
+
+\[
+C=
+\begin{pmatrix}
+    0.6165 & 0.6154 \\
+    0.6154 & 0.7165  
+\end{pmatrix}
+\]
+
+We should expect that both the $x$ and $y$ variable increase together, since the non-diagonal elements in this covariance matrix are positive.
+
+## Eigenvectors and eigenvalues 
+
+The eigenvectors and eigenvalues of a covariance matrix represent the “core” of a PCA: the eigenvectors determine the directions of the new feature space, and the eigenvalues determine their 
+magnitude. In other words, the eigenvalues explain the variance of the data along the new feature axes. The eigenvector with the highest eigenvalue is, therefore, the first principal component.
+
+The equation to find the eigenvectors and eigenvalues in our problem is the following:
+
+\[
+\begin{pmatrix} a  &  c \\ c  &  b \end{pmatrix} \begin{pmatrix}  x \\  y  \end{pmatrix} = \lambda \begin{pmatrix} x \\  y \end{pmatrix}
+\]
+
+where $a=0.6165$, $b=0.7165$ and $c=0.6154$.
+
+We can use the function [`eigen()`](https://www.rdocumentation.org/packages/base/versions/3.6.1/topics/eigen) to calculate the solution. If you want more information about how to compute 
+the eigenvalues and eigenvectors, check [here](https://en.wikipedia.org/wiki/Eigenvalues_and_eigenvectors).
+
+```{r message=FALSE, warning=FALSE}
+# Eigenvectors and eigenvalues calculation
+eigen <- eigen(data.frame(c(0.616555556, 0.615444444), 
+                          c(0.615444444, 0.716555556)))
+
+# Eigenvectors
+eigen$vectors
+
+# Eigenvalues
+eigen$values
+```
+
+So the solutions are 
+
+\[
+eigenvalues=\begin{pmatrix} 1.2840277  \\ 0.0490834   \end{pmatrix} 
+\]
+
+\[
+eigenvectors=\begin{pmatrix} 0.6778734   &  -0.7351787 \\ 0.7351787  &  0.6778734 \end{pmatrix} 
+\]
+
+The number of eigenvalues and eigenvectors that exits is equal to the number of dimensions the data set has. In our example we have 2 variables, so the data set is two-dimensional. 
+That means that there are two eigenvectors and eigenvalues.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Points with the mean substracted 
+xMeanSubstracted <- x - mean(x)
+yMeanSubstracted <- y - mean(y)
+data2 <- data.frame(xMeanSubstracted, xMeanSubstracted)
+
+# Eigenvectors functions  
+fun.1 <- function(x) (0.7351787/0.6778734)*x
+fun.2 <- function(x) (0.6778734/-0.7351787)*x
+
+# Scatter plot with the eigenvectors overlayed
+data2 %>%
+  ggplot(aes(xMeanSubstracted, yMeanSubstracted)) +
+  geom_point(size=2, shape=3, color="blue") +
+  stat_function(fun=fun.1, linetype="dashed") +
+  stat_function(fun=fun.2, linetype="dashed") +
+  theme_bw() +
+  xlim(-1.5, 1.5) +
+  labs(title="Mean adjusted data with eigenvectors overlayed",
+       x="x", y="y") +
+  annotate("text", x=c(-1.1, 0.9), y=c(1.5, 1.5), 
+           label=c("Second Component", "First Component"))
+```
+
+The eigenvector with the highest eigenvalue is the principle component of the data set. 
+
+## Choosing components 
+
+Once eigenvectors are found from the covariance matrix, the next step is to order them by eigenvalue, highest to lowest. This gives you the components in order of significance. 
+You can decide to ignore the components of lesser significance, so the final data set will have less dimensions than the original. 
+
+In order to decide, let's analize the percentage of variances explained by each principal component.
+
+```{r message=FALSE, warning=FALSE}
+# Principal Component Analysis
+pca <- prcomp(data, center=TRUE)
+
+# We can visualize the eigenvectors with the function fviz_eig() 
+# Documentation: https://www.rdocumentation.org/packages/factoextra/versions/1.0.5/topics/eigenvalue
+# Unfortunately, I get an error when I execute this function on Kaggle
+# fviz_eig(pca)
+
+# Cumulative proportion
+summary(pca)
+```
+
+PC1 explains 96% of the total variance, so we can discard the second component. 
+
+## Deriving the new data set
+
+Once we have chosen the components (eigenvectors) that we wish to keep in our data, we simply take the transpose of the vector and multiply it on the left of the original data set, transposed.
+
+\[
+FinalData=RowFeatureVector^T \,×\, RowDataAdjust^T
+\]
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Data expressed in terms of our 2 eigenvectors
+dataNewAxes <- as.data.frame(t(t(eigen$vectors) %*% rbind(x - mean(x), y - mean(y))))
+names(dataNewAxes) <- c("x", "y")
+
+# New data set 
+dataNewAxes
+
+# Visualization
+dataNewAxes %>%
+  ggplot(aes(x, y)) +
+  geom_point(size=2, shape=3, color="blue") +
+  theme_bw() +
+  labs(title="Data expressed in terms of our 2 eigenvectors",
+       x="First Component", y="Second Component") 
+```
+
+We have changed our data from being in terms of the axes `x` and `y` and now they are in terms of our 2 eigenvectors. This plot is basically the original data, 
+rotated so that the eigenvectors are the axes.
+
+## Getting the old data back
+
+If we took all the eigenvectors in our transformation will we get exactly the original data back. If we have reduced the number of eigenvectors in the final transformation, 
+then the retrieved data has lost some information. We are going to use the first principal component (96% of the total variance). So, how do we get the original data back? 
+We can use the following formula:
+
+\[
+RowOriginalData=(RowFeatureVector^T \,×\, FinalData) +  OriginalMean
+\]
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Reconstructed data using only the first principal component 
+as.data.frame(t(t(pca$x[, 1] %*% t(pca$rotation[, 1])) + pca$center)) %>%
+ggplot(aes(x, y)) +
+  geom_point(size=2, shape=3, color="blue") +
+  theme_bw() +
+  labs(title="Original data restored using only a single eigenvector")
+```
+
+The variation along the principle eigenvector has been kept, but the variation along the other component (the other eigenvector that we left out) has gone.
+
+Congratulations! We are at the end of this introductory example and have performed PCA from scratch to reduce the dimensionality of our data. 
+
+# **Image compression** 
+
+Now that we understand better the PCA method, we can show a more interesting example related to image compression. We are going to reconstruct an image using increasing amounts of principal
+components. We will see that as the number of principal components increase, the more representative of the original image the reconstruction becomes. How many PCs are enough to compress the
+image while maintaining a good quality?
+
+## Loading image {.tabset .tabset-fade .tabset-pills}
+
+Let's read the image first. 
+
+```{r message=FALSE, warning=FALSE}
+# Read image 
+image <- readJPEG("../input/image-compression/image.jpg")
+```
+
+Let’s get an idea of what we’re working with. The image is now represented as three 432x768 matrices as an array with each matrix corresponding to the RGB color value scheme.
+
+### Stucture
+```{r message=FALSE, warning=FALSE}
+# Structure
+str(image)
+```
+
+### Dimensions
+```{r message=FALSE, warning=FALSE}
+# Structure
+dim(image)
+```
+
+## PCA
+
+We are going to break down each color scheme into three data frames.
+
+```{r message=FALSE, warning=FALSE}
+# RGB color matrices
+rimage <- image[,,1]
+gimage <- image[,,2]
+bimage <- image[,,3]
+```
+
+Then we can apply the PCA separately for each color scheme. 
+
+```{r message=FALSE, warning=FALSE}
+# PCA for each color scheme
+pcar <- prcomp(rimage, center=FALSE)
+pcag <- prcomp(gimage, center=FALSE)
+pcab <- prcomp(bimage, center=FALSE)
+
+# PCA objects into a list
+pcaimage <- list(pcar, pcag, pcab)
+```
+
+## Scree plot and cumulative variation plot
+
+In the following visualization we can study the percentage of variances explained by each principal component.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Data frame for easier plotting
+df <- data.frame(scheme=rep(c("R", "G", "B"), each=nrow(image)), 
+                 index=rep(1:nrow(image), 3),
+                 var=c(pcar$sdev^2,
+                       pcag$sdev^2,
+                       pcab$sdev^2))
+
+# Reorder of factors
+df$scheme <- factor(df$scheme, levels(df$scheme)[c(3,2,1)])
+
+# Scree plot 
+df %>% 
+  group_by(scheme) %>%
+  mutate(propvar=100*var/sum(var)) %>%
+  ungroup() %>%
+  ggplot(aes(x=index, y=propvar, fill=scheme)) + 
+  geom_bar(stat="identity") +
+  geom_line() + 
+  labs(title="Scree plot", x="Principal Component", 
+       y="% of Variance") + 
+  scale_x_continuous(limits=c(0, 20)) +
+  facet_wrap(~scheme) +
+  theme_bw() +
+  theme(legend.title=element_blank(),
+        legend.position="bottom") 
+```
+
+With only the first principal component we can explain more than 70% of the total variance. Maybe the visualization is better if we plot the cumulative variation. Let's see! 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Cumulative variation plot
+df %>% 
+  group_by(scheme) %>%
+  mutate(propvar=100*var/sum(var)) %>%
+  mutate(cumsum=cumsum(propvar)) %>%
+  ungroup() %>%
+  ggplot(aes(x=index, y=cumsum, fill=scheme)) + 
+  geom_bar(stat="identity") + 
+  geom_line() + 
+  labs(title="Cumulative proportion of variance explained", 
+       x="Principal Component", y="Cumulative % of Variance") + 
+  scale_x_continuous(limits=c(0, 20)) +
+  facet_wrap(~scheme) +
+  theme_bw() +
+  theme(legend.title=element_blank(),
+        legend.position="bottom")
+```
+
+## Image reconstruction
+
+In the following code we reconstruct the image four times: using 2, 30, 200 and 300 principal components. As more principal components are used, the more the variance (information) is described.
+The first few principal components will have the most drastic change in quality while the last few components will not make much if any, difference to quality. 
+
+```{r fig.align='center', eval=FALSE, message=FALSE, warning=FALSE}
+# PCs values
+pcnum <- c(2, 30, 200, 300)
+
+# Reconstruct the image four times
+for(i in pcnum){
+    pca.img <- sapply(pcaimage, function(j){
+      compressed.img <- j$x[, 1:i] %*% t(j$rotation[, 1:i])
+    }, simplify='array') 
+  writeJPEG(pca.img, paste("C:/Users/xviva/Desktop/Xavier/Formacion/Trabajos Kaggle/
+                           image compress/Image reconstruction with", 
+            round(i, 0), "principal components.jpg"))
+}
+```
+
+The code saves the four images in my local PC using the function [`writeJPEG()`](https://www.rdocumentation.org/packages/jpeg/versions/0.1-8/topics/writeJPEG). Let's see the results:
+
+<center> Image reconstruction using **2 principal components** </center>
+
+<center><img
+src="https://i.imgur.com/YPGHl21.jpg">
+</center>
+
+<center> Image reconstruction using **30 principal components** </center>
+
+<center><img
+src="https://i.imgur.com/ELCMOSi.jpg">
+</center>
+
+<center> Image reconstruction using **200 principal components** </center>
+
+<center><img
+src="https://i.imgur.com/j3GfxHF.jpg">
+</center>
+
+<center> Image reconstruction using **300 principal components** </center>
+
+<center><img
+src="https://i.imgur.com/IiEWRHD.jpg">
+</center>
+
+<center> **Original image** </center>
+
+<center><img
+src="https://i.imgur.com/KwY9NeU.jpg">
+</center>
+
+By the way, the images are in [The Natural Park of Montseny](https://en.wikipedia.org/wiki/Montseny_Massif), the most recognizable natural landscape of Catalonia.
+
+# **Summary**
+
+In this kernel we have learned about the statistical technique PCA, reviewing and understanding first how the method works and later applying it to compress an image. 
+The reconstructed images with 200 and 300 principal components are very similar, so the remaining iterations will, therefore, have little improvement.
+
+And that’s all, thank you for checking out my kernel! I’ve had a great time doing it and I have learned a lot. Please upvote or comment if you like it!
+    
+By the way, if you want to view more kernels about other statistical techniques or machine learning algorithms, you can check the following links:
+
+* [Market Basket Analysis](https://www.kaggle.com/xvivancos/market-basket-analysis)
+
+* [k-Nearest Neighbors algorithm (k-NN) in the Iris data set](https://www.kaggle.com/xvivancos/knn-in-the-iris-data-set)
+
+* [Clustering wines with k-means](https://www.kaggle.com/xvivancos/tutorial-clustering-wines-with-k-means)
+
+# **References**
+
+Smith, L. I. (2002, February 26). A tutorial on principal components analysis. Retrieved from http://www.cs.otago.ac.nz/cosc453/student_tutorials/principal_components.pdf
+
+Hayden, L. (2018, August 9). Principal Component Analysis in R. In *DataCamp*. Retrieved from https://www.datacamp.com/community/tutorials/pca-analysis-r
+
+Wikipedia contributors. (2019, October 9). Principal component analysis. In *Wikipedia, The Free Encyclopedia*. 
+Retrieved from https://en.wikipedia.org/w/index.php?title=Principal_component_analysis&oldid=920334148
+
+# **Citations for used packages**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Simon Urbanek (2014). jpeg: Read and write JPEG images. R package version 0.1-8. https://CRAN.R-project.org/package=jpeg
+
+Alboukadel Kassambara and Fabian Mundt (2017). factoextra: Extract and Visualize the Results of Multivariate Data Analyses. R package version 1.0.5. 
+https://CRAN.R-project.org/package=factoextra
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Yihui Xie (2015) Dynamic Documents with R and knitr. 2nd edition. Chapman and Hall/CRC. ISBN 978-1498716963
+
+Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, editors, Implementing Reproducible Computational 
+Research. Chapman and Hall/CRC. ISBN 978-1466561595

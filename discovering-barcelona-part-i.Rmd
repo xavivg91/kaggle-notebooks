@@ -1,0 +1,720 @@
+---
+title: "**Discovering Barcelona Part I**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: no
+    code_folding: hide
+    theme: cosmo
+    highlight: tango
+---
+
+<center><img
+src="https://i.imgur.com/T5ugiXn.jpg">
+</center>
+
+# **Introduction**
+
+Hi! In this kernel we are going to analize some important topics about **Barcelona**: population, culture, transport, environment, etc. As a citizen and lover of this city, I would like to introduce it to the rest of Kaggle users. We are going to use data from the [Open Data BCN](http://opendata-ajuntament.barcelona.cat/en) platform:
+
+> Open Data BCN, a project that was born in 2010, implementing the portal in 2011, has evolved and is now part of the [Barcelona Ciutat Digital](https://ajuntament.barcelona.cat/digital/en) strategy, fostering a pluralistic digital economy and developing a new model of urban innovation based on the transformation and digital innovation of the public sector and the implication among companies, administrations, the academic world, organizations, communities and people, with a clear public and citizen leadership. 
+
+This portal contains more than 400 data sets classified in 5 main topics: Administration, Urban environment, Population, Territory, Economy and Business which are also divided in sub topics. You can consult the data sets catalogue [here](http://opendata-ajuntament.barcelona.cat/data/en/dataset). You can visit the second part (Discovering Barcelona Part II) [here](https://www.kaggle.com/xvivancos/discovering-barcelona-part-ii). Let's begin!
+
+# **Data sets used**
+
+* [Age of the population by neighbourhood, year by year and by genre of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-padro-edat-any-a-any)
+
+* [25 Most common baby names in Barcelona, disaggregated by sex. Years 1996-2016](http://opendata-ajuntament.barcelona.cat/data/en/dataset/noms-nadons)
+
+* [50 Most common names of the inhabitants of Barcelona, disaggregated by decade of birth and sex](http://opendata-ajuntament.barcelona.cat/data/en/dataset/nom-habitants)
+
+* [Immigrants by gender and by neighbourhoods of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-immigrants-sexe)
+
+* [Emigrants by sex by neighbourhoods of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-emigrants-sexe)
+
+* [Emigrants by five year gap by neighbourhoods of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-emigrants-edat-quinquennal)
+
+* [Immigrants by quinquennial ages and by neighbourhood of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-immigrants-edat-quinquennal)
+
+* [Immigrants by place of origin and by neighbourhoods of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-immigrants-lloc-procedencia)
+
+* [Emigrants by place of destination by neighbourhoods of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-emigrants-lloc-destinacio)
+
+* [Immigrants by nationality and by neighbourhoods of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-immigrants-nacionalitat)
+
+* [Birth by gender and by neighbourhoods of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-naixements-sexe)
+
+* [Deaths by quinquennial ages and by neighbourhoods of the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-defuncions-edat-quinquennal)
+
+* [Registered unemployement by neighbourhood and genre in the city of Barcelona](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-atur-sexe)
+
+* [Life expectancy in men of the city of Barcelona(2006-2013)](https://opendata-ajuntament.barcelona.cat/data/en/dataset/t10)
+
+* [Life expectancy in women of the city of Barcelona(2006-2013)](https://opendata-ajuntament.barcelona.cat/data/en/dataset/t11)
+
+# **Loading Data** {.tabset .tabset-fade .tabset-pills}
+
+First we need to load some libraries and read the data sets. 
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(tidyverse)
+library(knitr)
+library(scales)
+library(wordcloud)
+library(visNetwork)
+library(networkD3)
+library(knitr)
+
+# Read the data 
+population <- read.csv("../input/population.csv", 
+                       sep=",", fileEncoding="UTF-8")
+immigrants_emigrants_by_sex <- read.csv("../input/immigrants_emigrants_by_sex.csv", 
+                                        sep=",", fileEncoding="UTF-8")
+immigrants_emigrants_by_age <- read.csv("../input/immigrants_emigrants_by_age.csv", 
+                                        sep=",", fileEncoding="UTF-8")
+immigrants_emigrants_by_destination <- read.csv("../input/immigrants_emigrants_by_destination.csv", 
+                                                sep=",", fileEncoding="UTF-8")
+immigrants_emigrants_by_destination2 <- read.csv("../input/immigrants_emigrants_by_destination2.csv", 
+                                                 sep=",", fileEncoding="UTF-8")
+immigrants_by_nationality <- read.csv("../input/immigrants_by_nationality.csv", 
+                                      sep=",", fileEncoding="UTF-8")
+births <- read.csv("../input/births.csv", sep=",", fileEncoding="UTF-8")
+deaths <- read.csv("../input/deaths.csv", sep=",", fileEncoding="UTF-8")
+unemployment <- read.csv("../input/unemployment.csv", sep=",", fileEncoding="UTF-8")
+baby_names <- read.csv("../input/most_frequent_baby_names.csv", sep=",")
+names <- read.csv("../input/most_frequent_names.csv", sep=",")
+life_expectancy <- read.csv("../input/life_expectancy.csv", sep=",", fileEncoding="UTF-8")
+colnames(life_expectancy)[2:6] <- c("2006-2010", "2007-2011", "2008-2012", "2009-2013", "2010-2014")
+```
+
+Let’s get an idea of what we’re working with. We have many data sets so we are not going to inspect everyone. 
+
+## Population 
+```{r}
+# Structure
+str(population)
+```
+
+## Immigrants/Emigrants by sex 
+```{r}
+# Structure
+str(immigrants_emigrants_by_sex)
+```
+
+## Immigrants/Emigrants by age 
+```{r}
+# Structure
+str(immigrants_emigrants_by_age)
+```
+
+## Immigrants/Emigrants by destination 
+```{r}
+# Structure
+str(immigrants_emigrants_by_destination)
+```
+
+## Immigrants by nationality 
+```{r}
+# Structure
+str(immigrants_by_nationality)
+```
+
+## Births 
+```{r}
+# Structure
+str(births)
+```
+
+## Deaths 
+```{r}
+# Structure
+str(deaths)
+```
+
+## Unemployment 
+```{r}
+# Structure
+str(unemployment)
+```
+
+## Baby names 
+```{r}
+# Structure
+str(baby_names)
+```
+
+## Names 
+```{r}
+# Structure
+str(names)
+```
+
+## Life expectancy 
+```{r}
+# Structure
+str(life_expectancy)
+```
+
+# **Data Analysis**
+
+## Population
+
+Let's begin with the population by year. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Population by year 
+population %>%
+  group_by(Year, Gender) %>%
+  summarise(count=sum(Number)) %>%
+  mutate(percent=paste0(round((count/sum(count))*100, 2), "%")) %>%
+  ggplot(aes(x=Year, y=count)) +
+  geom_bar(stat="identity", aes(fill=Gender)) +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(labels=comma) +
+  labs(x="Year", y="Population", title="Population by year (2013-2017)") +
+  theme_bw() 
+```
+
+The city of Barcelona's population remains relatively stable as it's already extremely densely populated. The female population is slightly higher than the male. The population per year is very similar, so in the following visualizations we will only take into account the last year (2017). We can continue with the population by age. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Ordered levels
+population$Age <- ordered(population$Age, levels=c("0-4", "5-9", "10-14", "15-19",
+                                                   "20-24", "25-29", "30-34", "35-39",
+                                                   "40-44", "45-49", "50-54", "55-59",
+                                                   "60-64", "65-69", "70-74", "75-79",
+                                                   "80-84", "85-89", "90-94", ">=95"))
+
+
+# Population by age (2017)
+population2017 <- population %>%
+  filter(Year=="2017")
+  
+ggplot(data=population2017, aes(x=Age, fill=Gender)) +
+  geom_bar(data=filter(population2017, Gender=="Female"), aes(y=Number), stat="identity") + 
+  geom_bar(data=filter(population2017, Gender=="Male"), aes(y=Number*(-1)), stat="identity") +
+  scale_y_continuous(breaks=seq(-100000, 100000, 20000), 
+                     labels=comma(abs(seq(-100000, 100000, 20000)))) + 
+  labs(x="Age", y="Population", title="Population by age (2017)") +
+  coord_flip() +
+  theme_bw() 
+```
+
+The population distribution is centered around 35-44 years. It's interesting to observe how the male population decreases considerably from the 40-44 years old range, while in the female gender the decrease is less pronounced. It seems clear that men live less years in Barcelona! 
+
+Now we are going to analyze the districts population. We can get an idea of the size and location of each district using the following map. 
+
+<center><img
+src="https://i.imgur.com/dlHk4a1.png">
+</center>
+
+You can consult some context information about the districts and neighborhoods of Barcelona [here](https://en.wikipedia.org/wiki/Districts_of_Barcelona). Which districts are the most populated? Let's see! 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Population by district (2017)
+population %>%
+  filter(Year=="2017") %>%
+  group_by(District.Name, Gender) %>%
+  summarise(count=sum(Number)) %>%
+  mutate(percent=paste0(round((count/sum(count))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(District.Name, count), y=count)) +
+  geom_bar(stat="identity", aes(fill=Gender)) +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(breaks=seq(0, 300000, 100000), labels=comma) +
+  labs(x="District name", y="Population", title="Population by district (2017)") +
+  theme_bw() + 
+  coord_flip()
+```
+
+Eixample is the most populated district of Barcelona, followed by Sant Martí and Sants-Montjuïc. Conversely, Les Corts is the least populated district. We can see how the female population is higher than the male population in all neighborhoods, except in Ciutat Vella. We can go into more detail and analyze the population by neighborhoods. There are more than 70 neighborhoods, so we're just going to visualize the most populated. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Population by neighbordhood - Top 15 neighbordhoods (2017)
+population %>%
+  filter(Year=="2017") %>%
+  filter(Neighborhood.Name %in% c("la Nova Esquerra de l'Eixample", "Sant Andreu",
+                                  "la Sagrada Família", "la Vila de Gràcia",
+                                  "Sant Gervasi - Galvany", "el Raval", "les Corts",
+                                  "la Dreta de l'Eixample", "l'Antiga Esquerra de l'Eixample",
+                                  "Sants", "el Poble Sec", "Sant Antoni", 
+                                  "el Camp de l'Arpa del Clot", "el Guinardó", 
+                                  "el Camp d'en Grassot i Gràcia Nova")) %>%
+  group_by(Neighborhood.Name, Gender) %>%
+  summarise(count=sum(Number)) %>%
+  mutate(percent=paste0(round((count/sum(count))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(Neighborhood.Name, count), y=count)) +
+  geom_bar(stat="identity", aes(fill=Gender)) +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(breaks=seq(0, 60000, 20000), labels=comma) +
+  labs(x="Neighbordhood name", y="Population", title="Population by neighbordhood (2017)") +
+  theme_bw() + 
+  coord_flip()
+```
+
+In the Top 15 neighborhoods the female population is higher than the male population, except in el Raval. 
+
+## Immigration and emigration
+
+In this section we are going to show some visualizations to understand the complex phenomenon of immigration and emigration in the city of Barcelona. Let's begin with the analysis by year. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+immigrants_emigrants_by_sex <- gather(immigrants_emigrants_by_sex, `Immigrants/Emigrants`,
+                                      value, Immigrants:Emigrants, na.rm=TRUE)
+
+immigrants_emigrants_by_sex %>%
+  group_by(Gender, `Immigrants/Emigrants`, Year) %>%
+  summarise(count=sum(value)) %>%
+  ggplot(aes(x=`Immigrants/Emigrants`, y=count, fill=Gender)) +
+  geom_bar(stat="identity", position="stack") + 
+  facet_grid(~Year) +
+  theme_bw() +
+  labs(y="Population", title="Immigration and emigration by year (2013-2017)") +
+  scale_y_continuous(labels=comma) +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        axis.title.x=element_blank())
+```
+
+Whereas emigration has remained more or less constant over recent years, immigration has increased considerably since 2013. Let's study the immigration and emigration distribution by age in the last year using a pyramid plot.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+immigrants_emigrants_by_age <- gather(immigrants_emigrants_by_age, `Immigrants/Emigrants`, 
+                                      value, Immigrants:Emigrants, na.rm=TRUE)
+
+# Ordered levels
+immigrants_emigrants_by_age$Age <- ordered(immigrants_emigrants_by_age$Age, 
+                                           levels=c("0-4", "5-9", "10-14", "15-19",
+                                                    "20-24", "25-29", "30-34", "35-39",
+                                                    "40-44", "45-49", "50-54", "55-59",
+                                                    "60-64", "65-69", "70-74", "75-79",
+                                                    "80-84", "85-89", "90-94", "95-99",
+                                                    ">=100"))
+
+# Immigration and emigration by age (2017)
+immigrants_emigrants_by_age_2017 <- immigrants_emigrants_by_age %>%
+  filter(Year=="2017")
+
+ggplot(data=immigrants_emigrants_by_age_2017, aes(x=Age, fill=`Immigrants/Emigrants`)) +
+  geom_bar(data=filter(immigrants_emigrants_by_age_2017, `Immigrants/Emigrants`=="Immigrants"), 
+           aes(y=value), stat="identity") + 
+  geom_bar(data=filter(immigrants_emigrants_by_age_2017, `Immigrants/Emigrants`=="Emigrants"), 
+           aes(y=value*(-1)), stat="identity") +
+  scale_y_continuous(breaks=seq(-30000, 30000, 5000), labels=comma(abs(seq(-30000, 30000, 5000)))) + 
+  labs(x="Age", y="Population", title="Immigration and emigration by age (2017)") +
+  coord_flip() +
+  theme_bw() +
+  guides(fill=guide_legend(title=NULL)) 
+```
+
+As we can see, there were more than 20.000 immigrants between 20-24 years old in 2017. With respect to emigration, the distribution is centered around 25-39 years old. 
+
+In the next visualization we are going to analyze the emigration by place of destination (2017) using a [Sankey diagram](https://en.wikipedia.org/wiki/Sankey_diagram). A Sankey Diagram displays flows and their quantities, in proportion to one another using the width of arrows or lines to show their magnitudes. Let's see!
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Nodes
+nodes <- as.data.frame(levels(immigrants_emigrants_by_destination$from))
+nodes$id <- 1:nrow(nodes)
+nodes <- nodes[, c(2,1)]
+names(nodes) <- c("id", "label")
+
+# Emigrants 
+emigrants_by_destination <- immigrants_emigrants_by_destination %>%
+  filter(from=="Barcelona")
+
+# Edges
+edges <- emigrants_by_destination %>% 
+  left_join(nodes, by=c("from"="label")) %>%
+  select(-from) %>%
+  dplyr::rename(from=id)
+  
+edges <- edges %>% 
+  left_join(nodes, by=c("to"="label")) %>%
+  select(-to) %>%
+  dplyr::rename(to=id)
+
+nodes_d3 <- mutate(nodes, id=id-1)
+edges_d3 <- mutate(edges, from=from-1, to=to-1)
+
+# sankeyNetwork - Emigrants destination
+sankeyNetwork(Links=edges_d3, Nodes=nodes_d3, Source="from", Target="to", 
+              NodeID="label", Value="weight", fontSize=16, unit="Letter(s)")
+```
+
+Firstly it's important to emphasize that the data set used for this visualization doesn't specify destinations outside of Spain (category "Abroad"). Some comments about the graph: 
+
+* As we can see, vast majority of inhabitants migrate to other areas of Catalonia (due to the high rental prices in Barcelona, perhaps?).
+
+* A high percentage of inhabitants emigrate outside of Spain (looking for better job opportunities, maybe?).
+
+* Within Spain, the autonomous communities with more prominence are: Community of Madrid, Andalusia, Balearic Islands and Valencian Community. 
+
+We can further detail the visualization and also study the emigration by place of destination and by neighbourhoods of the city of Barcelona (2017).
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Nodes
+nodes <- as.data.frame(levels(immigrants_emigrants_by_destination2$from))
+nodes$id <- 1:nrow(nodes)
+nodes <- nodes[, c(2,1)]
+names(nodes) <- c("id", "label")
+
+# Emigrants 
+emigrants_by_destination2 <- immigrants_emigrants_by_destination2 %>%
+  filter(from %in% c("Ciutat Vella", "Eixample", "Gràcia", "Horta-Guinardó", 
+                     "Les Corts", "Nou Barris", "Sant Andreu", "Sant Martí",
+                     "Sants-Montjuïc", "Sarrià-Sant Gervasi"))
+
+# Edges
+edges <- emigrants_by_destination2 %>% 
+  left_join(nodes, by=c("from"="label")) %>%
+  select(-from) %>%
+  dplyr::rename(from=id)
+  
+edges <- edges %>% 
+  left_join(nodes, by=c("to"="label")) %>%
+  select(-to) %>%
+  dplyr::rename(to=id)
+
+nodes_d3 <- mutate(nodes, id=id-1)
+edges_d3 <- mutate(edges, from=from-1, to=to-1)
+
+# sankeyNetwork - Emigrants destination
+sankeyNetwork(Links=edges_d3, Nodes=nodes_d3, Source="from", Target="to", 
+              NodeID="label", Value="weight", fontSize=16, unit="Letter(s)")
+```
+
+Eixample is the neighbourhood with more emigration of Barcelona. Let's display the same visualization but now with immigration (2017).
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Immigrants 
+immigrants_by_destination2 <- immigrants_emigrants_by_destination2 %>%
+  filter(to %in% c("Ciutat Vella", "Eixample", "Gràcia", "Horta-Guinardó",
+                   "Les Corts", "Nou Barris", "Sant Andreu", "Sant Martí",
+                   "Sants-Montjuïc", "Sarrià-Sant Gervasi"))
+
+# Edges
+edges <- immigrants_by_destination2 %>% 
+  left_join(nodes, by=c("from"="label")) %>%
+  select(-from) %>%
+  dplyr::rename(from=id)
+  
+edges <- edges %>% 
+  left_join(nodes, by=c("to"="label")) %>%
+  select(-to) %>%
+  dplyr::rename(to=id)
+
+nodes_d3 <- mutate(nodes, id=id-1)
+edges_d3 <- mutate(edges, from=from-1, to=to-1)
+
+# sankeyNetwork - Emigrants destination
+sankeyNetwork(Links=edges_d3, Nodes=nodes_d3, Source="from", Target="to", 
+              NodeID="label", Value="weight", fontSize=16, unit="Letter(s)")
+```
+
+As we expected, the vast majority of immigrants come from outside of Spain. Can we know from which countries they come? Of course! We can use [another data set](http://opendata-ajuntament.barcelona.cat/data/en/dataset/est-demo-immigrants-nacionalitat) to extract the nationality of the immigrants during 2017.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Immigrants by nationality
+immigrants_by_nationality %>%
+  filter(Year=="2017", Nationality!="Spain") %>%
+  group_by(Nationality) %>%
+  summarise(count=sum(Number)) %>%
+  arrange(desc(count)) %>%
+  slice(1:15) %>%
+  ggplot(aes(x=reorder(Nationality, count), y=count)) +
+  geom_bar(stat="identity", aes(fill=count), show.legend=FALSE) +
+  geom_label(aes(label=count)) +
+  scale_y_continuous(labels=comma) +
+  scale_fill_gradient(low="plum2", high="plum4") +
+  labs(x="Nationality", y="Population", title="Immigrants by nationality (2017)") +
+  theme_bw() + 
+  coord_flip()
+```
+
+## Births
+
+Let's analyze the births by year of the city of Barcelona (2013-2017).
+
+```{r fig.align='center'}
+# Births by year
+births %>%
+  group_by(Year, Gender) %>%
+  summarise(Count=sum(Number)) %>%
+  mutate(percent=paste0(round((Count/sum(Count))*100, 2), "%")) %>%
+  ggplot(aes(x=Year, y=Count, fill=Gender)) +
+  geom_bar(stat="identity", position="stack") + 
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  labs(x="Year", y="Births", title="Births by year (2013-2017)") +
+  scale_y_continuous(labels=comma) +
+  theme_bw()
+```
+
+The number of births remains relatively stable during the past years. As we can see, the number of male births is slightly higher than the female births. Let's analyze the births by district (2017).
+
+```{r fig.align='center'}
+# Births by district (2017)
+births %>%
+  filter(Year=="2017") %>%
+  group_by(District.Name, Gender) %>%
+  summarise(count=sum(Number)) %>%
+  mutate(percent=paste0(round((count/sum(count))*100, 2), "%")) %>%
+  ggplot(aes(x=reorder(District.Name, count), y=count)) +
+  geom_bar(stat="identity", aes(fill=Gender)) +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(breaks=seq(0, 2000, 500), labels=comma) +
+  labs(x="District name", y="Births", title="Births by district (2017)") +
+  theme_bw() + 
+  coord_flip()
+```
+
+Eixample always appears in the first position!
+
+## Deaths 
+
+In this section we are going to analyze the deaths of the city of Barcelona. The data set used doesn't contain a column for the genre, so the visualizations won't be grouped by male and female sex. Let's begin with the deaths by quinquennial ages. 
+
+```{r fig.align='center'}
+# Ordered levels
+deaths$Age <- ordered(deaths$Age, levels=c("0-4", "5-9", "10-14", "15-19",
+                                           "20-24", "25-29", "30-34", "35-39",
+                                           "40-44", "45-49", "50-54", "55-59",
+                                           "60-64", "65-69", "70-74", "75-79",
+                                           "80-84", "85-89", "90-94", "95-99", ">=100"))
+
+# Deaths by age (2017)
+deaths %>%
+  filter(Year=="2017") %>%
+  group_by(Age) %>%
+  summarise(Count=sum(Number)) %>%
+  ggplot(aes(x=Age, y=Count)) +
+  geom_bar(stat="identity", aes(fill=Count), show.legend=FALSE) + 
+  geom_label(aes(label=Count), size=2.5) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(x="Age", y="Deaths", title="Deaths by age (2017)") +
+  scale_y_continuous(labels=comma) +
+  coord_flip() +
+  theme_bw() 
+```
+
+There's not much to discuss with this visualization. The results are logical and expected. What about the deaths by district?
+
+```{r fig.align='center'}
+# Deaths by district (2017)
+deaths %>%
+  filter(Year=="2017") %>%
+  group_by(District.Name) %>%
+  summarise(Count=sum(Number)) %>%
+  arrange(desc(Count)) %>%
+  ggplot(aes(x=reorder(District.Name, Count), y=Count)) +
+  geom_bar(stat="identity", aes(fill=Count), show.legend=FALSE) +
+  geom_label(aes(label=Count)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(x="Age", y="Deaths", title="Deaths by district (2017)") +
+  scale_y_continuous(labels=comma) +
+  coord_flip() +
+  theme_bw() 
+```
+
+## Life expectancy
+
+There are some neighborhoods without data, so the results may vary a bit.
+
+```{r fig.align='center'}
+# Life expectancy over the years
+life_expectancy %>%
+  na.omit %>%
+  group_by(Gender) %>%
+  summarise(`2006-2010`=mean(`2006-2010`),
+            `2007-2011`=mean(`2007-2011`),
+            `2008-2012`=mean(`2008-2012`),
+            `2009-2013`=mean(`2009-2013`),
+            `2010-2014`=mean(`2010-2014`)) %>%
+  gather(Years, `Life Expectancy`, 2:6) %>%
+  ggplot(aes(x=Years, y=`Life Expectancy`, group=Gender)) +
+  geom_line(aes(colour=Gender), size=1) +
+  geom_point(aes(colour=Gender), size=1) +
+  theme_bw() +
+  labs(title="Life expectancy over the years")
+```
+
+## Unemployment {.tabset .tabset-fade .tabset-pills}
+
+Unemployment is one of the biggest problems facing the citizens of Barcelona. The economic crisis has led to a significant drop in jobs, a rise in unemployment and a reduction in size of the labour force. 
+
+Fortunately, as we can see in the following visualizations, since 2013 unemployment has been decreasing. In the analysis per month, we can see a small unemployment  decrease in the summer months (June, July, August and September) and in December (probably due to Christmas campaigns).
+
+### 2013
+```{r fig.align='center'}
+# Ordered levels
+unemployment$Month <- ordered(unemployment$Month, levels=c("December", "November", "October",
+                                                           "September", "August", "July",
+                                                           "June", "May", "April", 
+                                                           "March", "February", "January"))
+
+# Unemployment by month (2013)
+unemployment %>%
+  filter(Year=="2013",
+         Demand_occupation=="Registered unemployed",
+         District.Name!="No consta") %>%
+  group_by(Month, Gender) %>%
+  summarise(Count=sum(Number)) %>%
+  mutate(percent=paste0(round((Count/sum(Count))*100, 2), "%")) %>%
+  ggplot(aes(x=Month, y=Count, fill=Gender)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(labels=comma) +
+  labs(x="Month", y="Population", title="Unemployment by month (2013)") +
+  theme_bw() +
+  coord_flip() 
+```
+
+### 2014
+```{r fig.align='center'}
+# Unemployment by month (2014)
+unemployment %>%
+  filter(Year=="2014",
+         Demand_occupation=="Registered unemployed",
+         District.Name!="No consta") %>%
+  group_by(Month, Gender) %>%
+  summarise(Count=sum(Number)) %>%
+  mutate(percent=paste0(round((Count/sum(Count))*100, 2), "%")) %>%
+  ggplot(aes(x=Month, y=Count, fill=Gender)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(labels=comma) +
+  labs(x="Month", y="Population", title="Unemployment by month (2014)") +
+  theme_bw() +
+  coord_flip() 
+```
+
+### 2015
+```{r fig.align='center'}
+# Unemployment by month (2015)
+unemployment %>%
+  filter(Year=="2015",
+         Demand_occupation=="Registered unemployed",
+         District.Name!="No consta") %>%
+  group_by(Month, Gender) %>%
+  summarise(Count=sum(Number)) %>%
+  mutate(percent=paste0(round((Count/sum(Count))*100, 2), "%")) %>%
+  ggplot(aes(x=Month, y=Count, fill=Gender)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(labels=comma) +
+  labs(x="Month", y="Population", title="Unemployment by month (2015)") +
+  theme_bw() +
+  coord_flip() 
+```
+
+### 2016
+```{r fig.align='center'}
+# Unemployment by month (2016)
+unemployment %>%
+  filter(Year=="2016",
+         Demand_occupation=="Registered unemployed",
+         District.Name!="No consta") %>%
+  group_by(Month, Gender) %>%
+  summarise(Count=sum(Number)) %>%
+  mutate(percent=paste0(round((Count/sum(Count))*100, 2), "%")) %>%
+  ggplot(aes(x=Month, y=Count, fill=Gender)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(labels=comma) +
+  labs(x="Month", y="Population", title="Unemployment by month (2016)") +
+  theme_bw() +
+  coord_flip() 
+```
+
+### 2017
+```{r fig.align='center'}
+# Unemployment by month (2017)
+unemployment %>%
+  filter(Year=="2017",
+         Demand_occupation=="Registered unemployed",
+         District.Name!="No consta") %>%
+  group_by(Month, Gender) %>%
+  summarise(Count=sum(Number)) %>%
+  mutate(percent=paste0(round((Count/sum(Count))*100, 2), "%")) %>%
+  ggplot(aes(x=Month, y=Count, fill=Gender)) +
+  geom_bar(stat="identity") +
+  geom_text(aes(label=percent, group=Gender), position=position_stack(vjust=0.5)) +
+  scale_y_continuous(labels=comma) +
+  labs(x="Month", y="Population", title="Unemployment by month (2017)") +
+  theme_bw() +
+  coord_flip() 
+```
+
+## Most frequent names 
+
+Finally, let's visualize something different! What are the most common baby names in Barcelona since 1996? We can display a wordcloud to make it more visual. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Most common baby names in Barcelona (1996-2016)
+top_baby_names <- baby_names %>%
+  group_by(Name) %>%
+  summarise(count=sum(Frequency)) %>%
+  arrange(desc(count))
+
+# Wordcloud
+wordcloud(words=top_baby_names$Name, freq=top_baby_names$count, min.freq=1,
+          random.order=FALSE, family="serif", font=3, colors=brewer.pal(8, "Dark2"))
+```
+
+My name is there! The data set used contains the frequency of the 25 most common names of the children discharged by birth to the Municipal Register of inhabitants of Barcelona, annually since 1996. And what about the most common names of the inhabitants of Barcelona in the last decade?
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Most common names of the inhabitants of Barcelona (last decade)
+top_names <- names %>%
+  filter(Decade=="2010") %>%
+  group_by(Name) %>%
+  summarise(count=sum(Frequency)) %>%
+  arrange(desc(count))
+
+# Wordcloud
+wordcloud(words=top_names$Name, freq=top_names$count, min.freq=1,
+          random.order=FALSE, family="serif", font=3, colors=brewer.pal(8, "Dark2"), scale=c(2,1))
+```
+
+This dataset contains the frequency of the 50 most common names of women and men residing in Barcelona, grouped according to the decade of birth.
+
+# **Summary**
+
+And that's all! In this kernel we have analyzed some demographic aspects of the city of Barcelona: population, immigration, emigration, births and deaths. Mi initial idea was to analyze more topics like culture, transport, sport, environment, etc. but there's too much data! (more than 400 data sets). Even so, in future updates (or maybe in another kernel) I will be adding more content, so please stay tuned! 
+
+Thank you so much for reading and if you like it, please upvote it. Remember that you can visit the second part (Discovering Barcelona Part II) [here](https://www.kaggle.com/xvivancos/discovering-barcelona-part-ii).
+
+# **World Data Viz Challenge 2018**
+
+I am very happy to have presented this kernel to the contest [World Data Viz Challenge 2018 Barcelona-Kobe](http://opendata-ajuntament.barcelona.cat/en/data-viz-kobe) and to have been chosen among one of the 10 finalists. The main goal of the World Data Viz Challenge 2018 Barcelona-Kobe is 
+to make visible through data visualizations the challenges of a smart city like Barcelona to be useful in the development of better public policies.
+
+If you are curious, you can visit the rest of the finalist projects [here](http://opendata-ajuntament.barcelona.cat/en/finalistes-data-viz-kobe), they are all great! 
+
+As a finalist, I've had the opportunity to attend to the [Smart City Expo World Congress 2018](http://www.smartcityexpo.com/en/home) (Barcelona, from November 13th-15th), so thanks to Kaggle for being an amazing platform to share data projects!
+
+<center><img
+src="https://i.imgur.com/I9ScWNr.png">
+</center>
+
+# **References**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Yihui Xie (2015) Dynamic Documents with R and knitr. 2nd edition. Chapman and Hall/CRC. ISBN 978-1498716963
+
+Hadley Wickham (2018). scales: Scale Functions for Visualization. R package version 1.0.0. https://CRAN.R-project.org/package=scales
+
+Ian Fellows (2014). wordcloud: Word Clouds. R package version 2.5. https://CRAN.R-project.org/package=wordcloud
+
+Almende B.V., Benoit Thieurmel and Titouan Robert (2018). visNetwork: Network Visualization using 'vis.js' Library. R package version 2.0.4. https://CRAN.R-project.org/package=visNetwork
+
+J.J. Allaire, Christopher Gandrud, Kenton Russell and CJ Yetman (2017). networkD3: D3 JavaScript Network Graphs from R. R
+package version 0.4. https://CRAN.R-project.org/package=networkD3
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Yihui Xie (2015) Dynamic Documents with R and knitr. 2nd edition. Chapman and Hall/CRC. ISBN 978-1498716963
+
+Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, editors, Implementing Reproducible Computational Research. Chapman and Hall/CRC. ISBN 978-1466561595

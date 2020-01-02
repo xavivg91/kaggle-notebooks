@@ -1,0 +1,982 @@
+---
+title: "**Analyzing The Cure discography**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    code_folding: hide
+    theme: cosmo
+    highlight: tango
+---
+
+<center><img
+src="https://i.imgur.com/WEptgQh.jpg">
+</center>
+
+# **Introduction**
+
+Hi! In this kernel we are going to use the [`spotifyr` package](https://github.com/charlie86/spotifyr), which allows us to enter an artist's name and retrieve their entire discography 
+from Spotify's Web API, along with audio features and track/album popularity metrics. Since The Cure are one of my favourite groups, we are going to analyze some metrics and audio features
+from their songs! The Cure are an English rock band formed in Crawley, West Sussex, in 1976. By the way, Friday I'm In Love is my favourite song. 
+
+# **`spotifyr` package**
+
+`spotifyr` is a wrapper for pulling track audio features and other information from Spotify's Web API in bulk. We can install it from GitHub.
+
+```{r eval=FALSE}
+# Install spotifyr from GitHub
+devtools::install_github('charlie86/spotifyr')
+```
+
+We need to set up a Spotify developer account [here](https://developer.spotify.com/dashboard/applications). Then, we have to grab the `Client ID` and `Client Secret`, and authorize our account
+by setting them to our environment variables.
+
+```{r eval=FALSE}
+# Client ID
+Sys.setenv(SPOTIFY_CLIENT_ID='xxxxxxxxxxxxxxxxxxxxx')
+
+# Client Secret
+Sys.setenv(SPOTIFY_CLIENT_SECRET='xxxxxxxxxxxxxxxxxxxxx')
+
+# Spotify access token
+access_token <- get_spotify_access_token()
+```
+
+Now, we can use the function `get_artist_audio_features()` from the `spotifyr` package in order to retrieve the popularity and audio features for every song and album for a given artist on Spotify.
+
+```{r eval=FALSE}
+# Load library
+library(spotifyr)
+
+# Retrieve The Cure discography
+spotify_df <- get_artist_audio_features('The Cure')
+```
+
+We can also use the following functions to pull song and playlist information for a given Spotify User:
+
+* [`get_my_recently_played()`](http://www.rcharlie.com/spotifyr/reference/get_my_recently_played.html). Get recently played tracks for current user.
+
+* [`get_my_top_artists()`](http://www.rcharlie.com/spotifyr/reference/get_my_top_artists.html). Get top artists for current user.
+
+* [`get_my_top_tracks()`](http://www.rcharlie.com/spotifyr/reference/get_my_top_tracks.html). Get top tracks for current user.
+
+If you want more information about this package, please check [here](https://github.com/charlie86/spotifyr).
+
+# **Loading Data**  {.tabset .tabset-fade .tabset-pills}
+
+First, we need to load some libraries and import our data. 
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(tidyverse)
+library(knitr)
+library(highcharter)
+library(ggridges)
+library(viridis)
+library(corrplot)
+library(gridExtra)
+
+# Read the data 
+spotify_df <- read.csv('../input/thecure_discography.csv')
+```
+
+Let's get an idea of what we're working with.
+
+## First 10 rows
+```{r message=FALSE, warning=FALSE}
+# First 10 rows
+kable(head(spotify_df, n=10))
+```
+
+## Last 10 rows
+```{r message=FALSE, warning=FALSE}
+# Last 10 rows
+kable(tail(spotify_df, n=10))
+```
+
+## Summary
+```{r message=FALSE, warning=FALSE}
+# Summary
+kable(summary(spotify_df))
+```
+
+## Structure
+```{r message=FALSE, warning=FALSE}
+# Structure
+glimpse(spotify_df)
+```
+
+# **Data Dictionary**
+
+In this section we are going to describe some audio features and metrics in the data set: 
+
+* `track_popularity`. The value will be between 0 and 100, with 100 being the most popular.
+
+* `duration_ms`. The duration of the track in milliseconds.
+
+* `valence`. A measure from 0.0 to 1.0 describing the musical positiveness conveyed by a track.
+
+* `danceability`. Danceability describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall
+regularity. A value of 0.0 is least danceable and 1.0 is most danceable.
+
+* `energy`. Represents a perceptual measure of intensity and activity (from 0.0 to 1.0).
+
+* `acousticness`. A confidence measure from 0.0 to 1.0 of whether the track is acoustic.
+
+* `loudness`. The overall loudness of a track in decibels (typical range between -60 and 0 db).
+
+* `speechiness`. Speechiness detects the presence of spoken words in a track. The more exclusively speech-like the recording, the closer to 1.0 the attribute value.
+
+* `instrumentalness`. Predicts whether a track contains no vocals. The closer the instrumentalness value is to 1.0, the greater likelihood the track contains no vocal content. 
+
+* `liveness`. Detects the presence of an audience in the recording. A value above 0.8 provides strong likelihood that the track is live.
+
+* `key_mode`. The key the track is in. 
+
+* `tempo`. The overall estimated tempo of a track in beats per minute (BPM).
+
+* `time_signature`.	An estimated overall time signature of a track. The time signature (meter) is a notational convention to specify how many beats are in each bar (or measure).
+
+If you want more information about the metrics, please check [here](https://developer.spotify.com/documentation/web-api/reference/tracks/get-audio-features/)
+
+# **Data Analysis**
+
+## Top 10 songs for each metric {.tabset .tabset-fade .tabset-pills}
+
+### Popularity 
+```{r message=FALSE, warning=FALSE}
+# Popularity - Top 10 songs
+spotify_df %>%
+  arrange(desc(track_popularity)) %>%
+  select(track_name, track_popularity) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Duration 
+```{r message=FALSE, warning=FALSE}
+# Duration - Top 10 songs
+spotify_df %>%
+  mutate(duration_min=round(duration_ms/60000, digits=2)) %>%
+  arrange(desc(duration_ms)) %>%
+  select(track_name, duration_min) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Valence
+```{r message=FALSE, warning=FALSE}
+# Valence - Top 10 songs
+spotify_df %>%
+  arrange(desc(valence)) %>%
+  select(track_name, valence) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Danceability
+```{r message=FALSE, warning=FALSE}
+# Danceability - Top 10 songs
+spotify_df %>%
+  arrange(desc(danceability)) %>%
+  select(track_name, danceability) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Energy
+```{r message=FALSE, warning=FALSE}
+# Energy - Top 10 songs
+spotify_df %>%
+  arrange(desc(energy)) %>%
+  select(track_name, energy) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Acousticness
+```{r message=FALSE, warning=FALSE}
+# Acousticness - Top 10 songs
+spotify_df %>%
+  arrange(desc(acousticness)) %>%
+  select(track_name, acousticness) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Loudness
+```{r message=FALSE, warning=FALSE}
+# Loudness - Top 10 songs 
+spotify_df %>%
+  arrange(desc(loudness)) %>%
+  select(track_name, loudness) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Speechiness
+```{r message=FALSE, warning=FALSE}
+# Speechiness - Top 10 songs
+spotify_df %>%
+  arrange(desc(speechiness)) %>%
+  select(track_name, speechiness) %>%
+  slice(1:10) %>%
+  kable() 
+```
+
+### Instrumentalness
+```{r message=FALSE, warning=FALSE}
+# Instrumentalness - Top 10 songs
+spotify_df %>%
+  arrange(desc(instrumentalness)) %>%
+  select(track_name, instrumentalness) %>%
+  slice(1:10) %>%
+  kable() 
+```
+
+### Liveness
+```{r message=FALSE, warning=FALSE}
+# Liveness - Top 10 songs
+spotify_df %>%
+  arrange(desc(liveness)) %>%
+  select(track_name, liveness) %>%
+  slice(1:10) %>%
+  kable() 
+```
+
+## Top 10 bottom songs for each metric {.tabset .tabset-fade .tabset-pills}
+
+### Popularity 
+```{r message=FALSE, warning=FALSE}
+# Popularity - Top 10 bottom songs 
+spotify_df %>%
+  arrange(track_popularity) %>%
+  select(track_name, track_popularity) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Duration
+```{r message=FALSE, warning=FALSE}
+# Duration - Top 10 bottom songs 
+spotify_df %>%
+  mutate(duration_min=round(duration_ms/60000, digits=2)) %>%
+  arrange(duration_ms) %>%
+  select(track_name, duration_min) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Valence
+```{r message=FALSE, warning=FALSE}
+# Valence - Top 10 bottom songs 
+spotify_df %>%
+  arrange(valence) %>%
+  select(track_name, valence) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Danceability
+```{r message=FALSE, warning=FALSE}
+# Danceability - Top 10 bottom songs 
+spotify_df %>%
+  arrange(danceability) %>%
+  select(track_name, danceability) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Energy
+```{r message=FALSE, warning=FALSE}
+# Energy - Top 10 bottom songs 
+spotify_df %>%
+  arrange(energy) %>%
+  select(track_name, energy) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Acousticness
+```{r message=FALSE, warning=FALSE}
+# Acousticness - Top 10 bottom songs 
+spotify_df %>%
+  arrange(acousticness) %>%
+  select(track_name, acousticness) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Loudness
+```{r message=FALSE, warning=FALSE}
+# Loudness - Top 10 bottom songs 
+spotify_df %>%
+  arrange(loudness) %>%
+  select(track_name, loudness) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Speechiness
+```{r message=FALSE, warning=FALSE}
+# Speechiness - Top 10 bottom songs 
+spotify_df %>%
+  arrange(speechiness) %>%
+  select(track_name, speechiness) %>%
+  slice(1:10) %>%
+  kable()
+```
+
+### Instrumentalness
+```{r message=FALSE, warning=FALSE}
+# Instrumentalness - Top 10 bottom songs 
+spotify_df %>%
+  arrange(instrumentalness) %>%
+  select(track_name, instrumentalness) %>%
+  slice(1:10) %>%
+  kable() 
+```
+
+### Liveness
+```{r message=FALSE, warning=FALSE}
+# Liveness - Top 10 bottom songs 
+spotify_df %>%
+  arrange(liveness) %>%
+  select(track_name, liveness) %>%
+  slice(1:10) %>%
+  kable() 
+```
+
+## Resume 
+
+If you're curious, in the following list you can access and listen to the first and last song of each category. 
+
+* **Popularity** - [Friday I’m In Love](https://www.youtube.com/watch?v=mGgMZpGYiy8) (62) and 
+[The Promise](https://www.youtube.com/watch?v=ONRdLP5vvJk&index=11&list=PL5cG0tHLPbpg86sQBOS0riFlY0_oeI_DL) (0)
+
+* **Duration** - [Exploding Head Syndrome - 4 Single Remix by 65 Days of Static](https://www.youtube.com/watch?v=yh5hNoXMy74&t=253s) (21.44 minutes) and 
+[You Stayed](https://www.youtube.com/watch?v=G6OTLYuUUpw) (2.34 minutes)
+
+* **Valence** - [Close to me](https://www.youtube.com/watch?v=BjvfIJstWeg) (0.960) and 
+[Give Me It - Live Version (1984)](https://www.youtube.com/watch?v=ltvvyVB-AIA&index=5&list=PLhVpXc3VfP_GBRz1I0Lt8P-HB31WGsqjF) (0.0422)
+
+* **Danceability** - [The Top - Remastered](https://www.youtube.com/watch?v=Z8-FfFsHadU&list=PLfJrCQ9yOVABm33LEl5lnJUVwaaTxGkhm&index=10) (0.848) and 
+[Plainsong - Bestival Live 2011](https://www.youtube.com/watch?v=GhfkC0Wkr_g&list=PL7v6WZy1o0cJ7Ge2I_gbphMONzY6vWTfQ) (0.175)
+
+* **Energy** - [It's Over](https://www.youtube.com/watch?v=qwsjmQkKpEE&index=13&list=PL72vPk8_MzjmQ4tNGCfA0iSBVcSF1L-LR) (0.998) and 
+[Tape](https://www.youtube.com/watch?v=ffoquBDwC64&list=PLahPLbL_wCXZGbkhJupgFaLhKRYT-ESa5) (0.284)
+
+* **Acousticness** - [The 13th](https://www.youtube.com/watch?v=Y0qm4NSHKqU) (0.759) and 
+[Give Me It - Remastered](https://www.youtube.com/watch?v=qxpp-yRx_Oc&list=PLfJrCQ9yOVABm33LEl5lnJUVwaaTxGkhm&index=4) (3.00e-05)
+
+* **Loudness** - [It’s Over](https://www.youtube.com/watch?v=qwsjmQkKpEE&index=13&list=PL72vPk8_MzjmQ4tNGCfA0iSBVcSF1L-LR) (-1.378 db) and 
+[Tape](https://www.youtube.com/watch?v=ffoquBDwC64&list=PLahPLbL_wCXZGbkhJupgFaLhKRYT-ESa5) (-24.265 db)
+
+* **Speechiness** - [The Kiss](https://www.youtube.com/watch?v=RtHlzJS61U0&list=PLWAQnUYZmAZJ2Ts_Kbd67lGoiST2oo7L-&index=1) (0.267) and 
+[The Empty World](https://www.youtube.com/watch?v=x5dZpZ2o9G0&list=PLfJrCQ9yOVABm33LEl5lnJUVwaaTxGkhm&index=8) (0.0233)
+
+* **Instrumentalness** - [Just One Kiss - Extended Mix 1982](https://www.youtube.com/watch?v=z9e7ASZUWwM) (0.933) and 
+[Piggy In The Mirror - Remastered](https://www.youtube.com/watch?v=HeqZOxvASdY&index=7&list=PLfJrCQ9yOVABm33LEl5lnJUVwaaTxGkhm) (0)
+
+* **Liveness** - [Charlotte Sometimes - Live Paris Version](https://www.youtube.com/watch?v=YVLSz_MgquE&index=11&list=PLVcyRFQs3RdpcEKJ2QCRczXGobUnfuI4q) (1.000) and 
+[Lullaby - Extended Mix](https://www.youtube.com/watch?v=dGBQwBkCaTs&index=1&list=PLS0VdyfgvM_prEfJiqYHgiizDdHU0pJTZ) (0.0389)
+
+## What is The Cure favorite key?
+
+Let’s determine the most common keys.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Most common keys
+spotify_df %>% 
+    count(key_mode, sort=TRUE) %>% 
+    slice(1:10) %>% 
+    ggplot(aes(x=reorder(key_mode, -n), y=n, fill=key_mode)) +
+    geom_bar(stat = "identity", show.legend=FALSE) +
+    geom_text(aes(label=n), position=position_stack(vjust=0.8)) +
+    labs(x="Keys", y="Count",
+         title="The Cure discography",
+         subtitle="Most common keys") +
+    theme_bw()
+```
+
+## Density plots, boxplots and violin plots  
+
+Let's visualize the distribution of the following audio features: acousticness, danceability, energy, instrumentalness, liveness and valence (ranges between 0.0 to 1.0). 
+We can start with the density plots, in order to represent the distribution of data over a continuous interval. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Density plots 
+spotify_df %>%
+  gather(features, values, c(10, 11, 16, 17, 18, 19)) %>%
+  ggplot(aes(x=values, fill=features)) +
+  geom_density(alpha=0.5, show.legend=FALSE) +
+  facet_wrap(~features) +
+  labs(y="Density",
+       title="The Cure discography",
+       subtitle="Audio features") +
+  theme(axis.title.x=element_blank()) +
+  theme_bw()
+```
+
+What can we observe?
+
+* In the acoustinecness, instrumentalness and liveness density plots, the values are concentrated over the interval between 0.0 and 0.25 approximately.
+
+* In the danceability and valence density plots, the values are concentrated around 0.5. 
+
+* In the energy density plot, the peak is located over the interval between 0.75 and 1.0 approximately.
+
+Let's represent the data distribution using boxplots. A boxplot is a method for graphically depicting groups of numerical data through their quartiles.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Boxplots  
+spotify_df %>%
+  gather(features, values, c(10, 11, 16, 17, 18, 19)) %>%
+  ggplot(aes(x=reorder(features, values, FUN=median), y=values, fill=features)) +
+  geom_boxplot(show.legend=FALSE) +
+  labs(x="Audio feature", y="Density",
+       title="The Cure discography",
+       subtitle="Audio features") +
+  theme_bw() 
+```
+
+Finally, we are going to use violin plots. This type of chart is a combination of a boxplot and a density plot.  
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Violin plots  
+spotify_df %>%
+  gather(features, values, c(10, 11, 16, 17, 18, 19)) %>%
+  ggplot(aes(x=reorder(features, values, FUN=median), y=values, fill=features)) +
+  geom_violin(show.legend=FALSE) +
+  geom_boxplot(width=0.05, fill="white") +
+  labs(x="Audio feature", y="Density",
+       title="The Cure discography",
+       subtitle="Audio features") +
+  theme_bw() 
+```
+
+In this section we have analyzed some audio features insights through different visualizations. 
+
+## Analysis by album {.tabset .tabset-fade .tabset-pills}
+
+Now we are going to analyze the same parameters, but for each album. We can use the `ggridges` package. Ridgeline plots are partially overlapping line plots that create the impression of a 
+mountain range. Just as a curiosity, these types of plots have also been called “joyplots”, in reference to the iconic cover art for Joy Division’s album *Unknown Pleasures*. 
+Let's begin with the acousticness, danceability and energy features. The labels are sorted by the album's release date.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Ridgeline plots
+spotify_df %>%
+    mutate(album_name_year=paste0(album_name, " (", substring(album_release_date, 1, 4), ")")) %>%
+    gather(features, values, c(10, 11, 16)) %>%
+    ggplot(aes(x=values, y=album_name_year, fill=..x..)) + 
+    geom_density_ridges_gradient(scale=2, rel_min_height=0.01, gradient_lwd=1., show.legend=FALSE) +
+    scale_fill_viridis(option="B") +
+    facet_wrap(~features) +
+    labs(title="The Cure discography",
+         subtitle="Audio features") +
+    theme_bw() +
+    theme(axis.title.x=element_blank(),
+          axis.title.y=element_blank()) 
+```
+
+I wouldn't have expected The Cure songs to have so high energy levels. It would be interesting to know how Spotify calculates the audio features. What about the instrumentalness, liveness and 
+valence metrics? Let's see. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Ridgeline plots
+spotify_df %>%
+    mutate(album_name_year=paste0(album_name, " (", substring(album_release_date, 1, 4), ")")) %>%
+    gather(features, values, c(17, 18, 19)) %>%
+    ggplot(aes(x=values, y=album_name_year, fill=..x..)) + 
+    geom_density_ridges_gradient(scale=2, rel_min_height=0.01, gradient_lwd=1., show.legend=FALSE) +
+    scale_fill_viridis(option="D") +
+    facet_wrap(~features) +
+    labs(title="The Cure discography",
+         subtitle="Audio features") +
+    theme_bw() +
+    theme(axis.title.x=element_blank(),
+          axis.title.y=element_blank())
+```
+
+We can also use radar charts to visualize the average values for each album. The visualization is much better with 
+[`coord_radar()`](https://www.rdocumentation.org/packages/ggiraphExtra/versions/0.2.9/topics/coord_radar) (`ggiraphExtra` package) instead of 
+[`coord_polar()`](https://www.rdocumentation.org/packages/ggplot2/versions/3.2.1/topics/coord_polar), but I've had some problems with this function in Kaggle. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Average values 
+radarchart_data <- spotify_df %>%
+  group_by(album_name) %>%
+  summarise(Danceability=mean(danceability),
+         Energy=mean(energy),
+         Speechiness=mean(speechiness),
+         Acousticness=mean(acousticness),
+         Instrumentalness=mean(instrumentalness),
+         Liveness=mean(liveness),
+         Valence=mean(valence)) %>%
+  gather(features, values, 2:8)
+
+# Album names abbreviations 
+radarchart_data <- radarchart_data %>%
+  mutate(album_name=recode(album_name, `Disintegration (Deluxe Edition [Remastered])`="Disintegration",
+                           `Mixed Up (Remastered 2018 / Deluxe Edition)`="Mixed Up")) 
+
+# Radarchart (first eight albums)
+ggplot(radarchart_data %>% filter(album_name==c("4:13 Dream", "Bestival Live 2011", "Bloodflowers", 
+                                                "Concert - The Cure Live", "Disintegration", 
+                                                "Hypnagogic States", "Kiss Me Kiss Me Kiss Me", 
+                                                "Mixed Up")),
+                aes(x=features, y=values, col=album_name, group=album_name)) +
+  geom_polygon(fill=NA, size=1.5, show.legend=FALSE) +
+  geom_point(size=2, col="black") +
+  coord_polar() +
+  facet_wrap(~album_name, nrow=2) +
+  theme_bw() +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x=element_blank(),
+        text=element_text(size=8)) 
+
+# Radarchart (remaining albums)
+ggplot(radarchart_data %>% filter(album_name==c("Paris", "Pornography", "Show", "The Cure", 
+                                                "The Head On The Door", "The Top", 
+                                                "Wild Mood Swings", "Wish")),
+                aes(x=features, y=values, col=album_name, group=album_name)) +
+  geom_polygon(fill=NA, size=1.5, show.legend=FALSE) +
+  geom_point(size=2, col="black") +
+  coord_polar() +
+  facet_wrap(~album_name, nrow=2) +
+  theme_bw() +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x=element_blank(),
+        text=element_text(size=8)) 
+```
+
+Finally, in the following visualization created with `hchart()` (`highcharter` package) we can see all the audio features and popularity metrics for all songs and albums. 
+
+### Popularity 
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Popularity Index:</b> ', track_popularity),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line 
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(track_popularity)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Popularity Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=track_popularity, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=100, title=list(text='Popularity Index')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text ='Popularity by album') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Duration 
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(duration_min=round(duration_ms/60000, digits=2),
+           tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Duration:</b> ', duration_min),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(duration_min)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Duration:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=duration_min, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=25, title=list(text='Duration (minutes)')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Duration by album (minutes)') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Valence
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Valence Index:</b> ', valence),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(valence)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Valence Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=valence, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=1, title=list(text='Valence Index')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Valence by album') %>% 
+    hc_add_theme(hc_theme_smpl())
+
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Danceability 
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Danceability Index:</b> ', danceability),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(danceability)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Danceability Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=danceability, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=1, title=list(text='Danceability Index')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Danceability by album') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+ # Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Energy
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Energy Index:</b> ', energy),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(energy)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Energy Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=energy, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=1, title=list(text='Energy Index')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Energy by album') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Acousticness
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Acousticness Index:</b> ', acousticness),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(acousticness)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Acousticness Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=acousticness, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=1, title=list(text='Acousticness Index')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Acousticness by album') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Loudness
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Loudness Index:</b> ', loudness),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(loudness)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Loudness Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=loudness, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=0, min=-25, title=list(text='Loudness Index (db)')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Loudness by album (db)') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Speechiness
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Speechiness Index:</b> ', speechiness),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(speechiness)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Speechiness Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=speechiness, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=0.25, title=list(text='Speechiness Index')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Speechiness by album') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Instrumentalness
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Instrumentalness Index:</b> ', instrumentalness),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(instrumentalness)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Instrumentalness Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=instrumentalness, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=1, title=list(text='Instrumentalness Index')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Instrumentalness by album') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+### Liveness
+```{r fig.align='center', message=FALSE, warning=FALSE}
+set.seed(111)
+
+# Tooltip
+plot_df <- spotify_df %>% 
+    mutate(tooltip=paste0('<b>Album:</b> ', album_name,
+                          '<br><b>Track:</b> ', track_name,
+                          '<br><b>Liveness Index:</b> ', liveness),
+           album_number=as.numeric(as.factor(album_release_year))) 
+
+# Average line
+avg_line <- plot_df %>% 
+    group_by(album_release_year, album_name) %>% 
+    summarise(avg=mean(liveness)) %>% 
+    transmute(x=as.numeric(as.factor(album_release_year)), 
+              y=avg,
+              tooltip=paste0('<b>Album:</b> ', album_name,
+                             '<br><b>Average Liveness Index:</b> ', round(avg, 2)))
+
+# Highcharter
+album_chart <- hchart(plot_df, 'scatter', hcaes(x=as.numeric(as.factor(album_release_year)), y=liveness, group=album_name)) %>% 
+    hc_add_series(data=avg_line, type='line') %>%
+    hc_tooltip(formatter=JS(paste0("function() {return this.point.tooltip;}")), useHTML=T) %>% 
+    hc_xAxis(title=list(text='Album'), labels=list(enabled=F)) %>% 
+    hc_yAxis(max=1, title=list(text='Liveness Index')) %>% 
+    hc_title(text='The Cure discography') %>% 
+    hc_subtitle(text='Liveness by album') %>% 
+    hc_add_theme(hc_theme_smpl())
+    
+# Average line label    
+album_chart$x$hc_opts$series[[17]]$name <- 'Album Averages'
+
+album_chart
+```
+
+## Correlations
+
+What's the relationship between the different attributes? We can use the [`corrplot()`](https://www.rdocumentation.org/packages/corrplot/versions/0.2-0/topics/corrplot)
+function to create a graphical display of a correlation matrix.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Correlation matrix 
+corrplot(cor(spotify_df[,c(10, 11, 13, 15, 16, 17, 18, 19, 20, 21, 24)]), 
+         type="upper", method="ellipse", tl.cex=0.9)
+```
+
+There's a strong linear correlation between `danceability` and `valence`. It makes sense, considering happy songs make people want to dance. There's also 
+a high correlation between `energy` and `loudness`. We can model the relationship between these  variables by fitting a linear equation.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Relationship between danceability and valence
+p1 <- ggplot(spotify_df, aes(x=danceability, y=valence)) +
+  geom_point() +
+  geom_smooth(method="lm", se=TRUE) +
+  theme_bw()
+
+# Relationship between energy and loudness
+p2 <- ggplot(spotify_df, aes(x=energy, y=loudness)) +
+  geom_point() +
+  geom_smooth(method="lm", se=TRUE) +
+  theme_bw()
+
+# Subplot 
+grid.arrange(p1, p2, ncol=2)
+```
+
+The most energetic songs are also the songs with highest values of loudness. 
+
+# **Summary**
+
+In this kernel we have learned how to use the `spotifyr` package for pulling track audio features and other information from Spotify's Web API. Furthermore, we have analyzed some metrics from 
+The Cure's discography (valence, danceability, popularity, energy, etc.), first by song and then by album. Finally, we have studied the correlations between the different variables. 
+I would have liked to include the lyrics of the songs and analyze them using text mining techniques.
+
+And that’s it! It has been a pleasure to make this kernel, I have learned a lot! Thank you for reading and if you like it, please upvote it.
+
+<center><img
+src="https://i.imgur.com/iZxw0Ru.jpg">
+</center>
+
+# **Citations for used packages**
+
+Charlie Thompson (2017). spotifyr: Pull Track Audio Features from the 'Spotify' Web API. R package version 1.0.0. https://CRAN.R-project.org/package=spotifyr
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Joshua Kunst (2017). highcharter: A Wrapper for the 'Highcharts' Library. R package version 0.5.0. https://CRAN.R-project.org/package=highcharter
+
+Claus O. Wilke (2018). ggridges: Ridgeline Plots in 'ggplot2'. R package version 0.5.0. https://CRAN.R-project.org/package=ggridges
+
+Simon Garnier (2018). viridis: Default Color Maps from 'matplotlib'. R package version 0.5.1. https://CRAN.R-project.org/package=viridis
+
+Taiyun Wei and Viliam Simko (2017). R package "corrplot": Visualization of a Correlation Matrix (Version 0.84). Available from https://github.com/taiyun/corrplot
+
+Baptiste Auguie (2017). gridExtra: Miscellaneous Functions for "Grid" Graphics. R package version 2.3. https://CRAN.R-project.org/package=gridExtra

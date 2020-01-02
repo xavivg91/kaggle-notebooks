@@ -1,0 +1,737 @@
+---
+title: "**How good is Luka Doncic?**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: no
+    code_folding: hide
+    theme: cosmo
+    highlight: tango
+---
+
+<center><img
+src="https://i.imgur.com/WM6TNWx.jpg">
+</center>
+
+> "He's a born winner. No, I'm not kidding, he already has a lot of trophies, and medals. I'm happy for him. Mark my words, he's going to be one of the best in the whole world." 
+<div style="text-align: right"> **Goran Dragic** </div>
+
+> "He's an incredible talent. His court vision and passing for his size at his age is something I've never seen in my 20 years."     
+<div style="text-align: right"> **Dirk Nowitzki** </div>
+
+> "I like him a lot. He’s polished. He’s skilled. You can tell that he played professional basketball already and they’ve got a great guy in him to lead this franchise in the future."
+<div style="text-align: right"> **Kevin Durant** </div>
+
+> "For a 19-year-old, he’s got a really unusual combination of size, speed, and deceptive quickness."
+<div style="text-align: right"> **Rick Carlisle** </div>
+
+> "He's a rookie, but he's found a way to impose his will most nights, and it's going to be good to see him develop in this league and a star."
+<div style="text-align: right"> **Stephen Curry** </div>
+
+# **Introduction**
+
+Hi! In this kernel we are going to analyze stats of the Mavericks phenom Luka Doncic. The 19-year-old Slovenian came into the NBA as a rookie and immediately played like a seasoned veteran, and currently establishing himself as the leader of a team that is making some noise in the Western Conference. He's a leading candidate for NBA Rookie and he'll probably play the 2019 All-Star Game [**UPDATE**: Doncic tallied the third most fan votes (4,242,980), but finally he will miss out on All-Star weekend's]. In addition, he has just achieved some incredible milestones:
+
+* First teenager in NBA history with a 30-point triple-double
+
+* First teenager in NBA history with multiple triple-doubles
+
+* 7th youngest player in NBA history to reach 1000 points before turning 20. LeBron James, Kevin Durant, Carmelo Anthony, Kobe Bryant, Devin Booker and Dwight Howard were the previous ones.
+
+The question is: What is the ceiling for Luka Doncic? Let's take a look at his professional career!
+
+# **Loading Data**
+
+First we need to load some libraries and read the data sets.
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(tidyverse)
+library(ggpubr)
+library(magick)
+library(grid)
+library(knitr)
+
+# Read the data 
+ACBstats <- read.csv("../input/Liga ACB stats.csv", sep=",", fileEncoding="UTF-8")
+colnames(ACBstats)[c(5, 10, 11, 12, 13, 14, 15, 16, 19)] <- c("Regular Season/Playoffs", "FG%", "3P", "3PA",
+                                                              "3P%", "2P", "2PA", "2P%", "FT%")
+                                                              
+ACBmatches <- read.csv("../input/Liga ACB matches.csv", sep=",", fileEncoding="UTF-8")
+colnames(ACBmatches)[c(7, 11, 12, 13, 14, 17)] <- c("Result", "FG%", "3P",
+                                                    "3PA", "3P%", "FT%")
+                                                    
+Euroleaguestats <- read.csv("../input/Euroleague stats.csv", sep=",", fileEncoding="UTF-8")
+colnames(Euroleaguestats)[c(3, 8, 9, 10, 11, 12, 13, 14, 17)] <- c("League", "FG%", "3P", "3PA", "3P%",
+                                                                   "2P", "2PA", "2P%", "FT%")
+                                                                   
+Euroleaguematches <- read.csv("../input/Euroleague matches.csv", sep=",", fileEncoding="UTF-8")
+colnames(Euroleaguematches)[c(7, 11, 12, 13, 14, 17)] <- c("Result", "FG%", "3P",
+                                                           "3PA", "3P%", "FT%")
+                                                           
+Rookiestats <- read.csv("../input/Rookie season stats.csv", sep=",", fileEncoding="UTF-8")
+colnames(Rookiestats)[c(2, 12, 13, 14, 15, 16, 17, 18, 19, 22)] <- c("Rookie Season", "FG%", "3P", "3PA", 
+                                                                     "3P%", "2P", "2PA", "2P%", "eFG%", "FT%")  
+                                                                     
+NBAmatches <- read.csv("../input/NBA matches.csv", sep=",", fileEncoding="UTF-8")
+```
+
+# **Glossary**
+
+I would like to clarify some terms that appear in the data sets.
+
+<center>
+
+|   **Term**    |    Explanation                              |  **Term**     |  Explanation                      |
+|:--------------|:--------------------------------------------|:--------------|:----------------------------------|
+| **G**         | Games                                       | **+/-**       | Plus/Minus                        |
+| **GS**        | Games Started                               | **GmSc**      | Game Score                        | 
+| **MP**        | Minutes Played Per Game                     | **PTS**       | Points per Game                   |
+| **FG**        | Field Goals Per Game                        | **PF**        | Personal Fouls Per Game           |
+| **FGA**       | Field Goal Attempts Per Game                | **TOV**       | Turnovers Per Game                |
+| **FG%**       | Field Goal Percentage                       | **BLK**       | Blocks Per Game                   |
+| **3P**        | 3-Point Field Goals Per Game                | **STL**       | Steals Per Game                   |
+| **3PA**       | 3-Point Field Goal Attempts Per Game        | **AST**       | Assists Per Game                  |
+| **3P%**       | 3-Point Field Goal Percentage               | **TRB**       | Total Rebounds Per Game           |
+| **2P**        | 2-Point Field Goals Per Game                | **DRB**       | Defensive Rebounds Per Game       |
+| **2PA**       | 2-Point Field Goal Attempts Per Game        | **ORB**       | Offensive Rebounds Per Game       |
+| **2P%**       | 2-Point Field Goal Percentage               | **FT%**       | Free Throw Percentage             |
+| **FT**        | Free Throws Per Game                        | **FTA**       | Free Throw Attempts Per Game      |
+
+</center> 
+
+# **Real Madrid (2015–2018)**
+
+In September 2012, at 13 years of age, Doncic signed a five-year contract with Real Madrid (previously he shone as a youth player for Slovenian club Union Olimpija). However, he didn't play professionally until 2015. Let's analyze his statistics in the two main competitions (Liga ACB and EuroLeague) as Real Madrid player.
+
+## Liga ACB
+
+Some context information about this league (official website [here](http://www.acb.com/)):
+
+> The Liga ACB, known as Liga Endesa for sponsorship reasons, is the top professional basketball division of the Spanish basketball league system. The competition format follows the usual double round-robin format. During the course of a season, which lasts from October to May, each club plays every other club twice, once at home and once away, for a total of 34 games. The eight highest-ranked clubs at the end of the season plays the playoffs and the winner of the playoffs is crowned champion.
+<div style="text-align: right"> **Reference:** https://en.wikipedia.org/wiki/Liga_ACB </div>
+
+On April 30, 2015, Doncic made his professional debut for Real Madrid in the Liga ACB against Unicaja. At 16 years, 2 months, and 2 days of age, he became the youngest player to ever play for Real Madrid in the ACB and the third-youngest debutant in league history, behind only [Ricky Rubio](https://en.wikipedia.org/wiki/Ricky_Rubio) and Ángel Rebolo. Let's take a look at his statistics during the four seasons in this league. We can start with some important statistical categories: points, assists and rebounds. 
+
+```{r fig.align='center'}
+# Liga ACB - Assists, Points and Rebounds  
+ACBstats %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Category, Value, c(22, 23, 28)) %>%
+  ggplot(aes(x=Season, y=Value, color=`Regular Season/Playoffs`, group=`Regular Season/Playoffs`)) +
+  geom_line() +
+  geom_point(size=2) +
+  facet_wrap(~Category, scales="free") +
+  theme_bw() +
+  labs(title="Luka Doncic stats - Liga ACB",
+       subtitle="Assists, Points and Rebounds") +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank())
+```
+
+His numbers have increased over the years. As we can see, the stats in Playoffs are slightly lower than the stats in Regular Season. Let's analyze now some shooting stats: 3-Point Field Goal Percentage (3P%), 2-Point Field Goal Percentage (2P%) and Free Throw Percentage (FT%). 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Liga ACB - 2P%, 3P% and FT%  
+ACBstats %>%
+  gather(Category, Value, c(13, 16, 19)) %>%
+  ggplot(aes(x=Season, y=Value, color=`Regular Season/Playoffs`, group=`Regular Season/Playoffs`)) +
+  geom_line() +
+  geom_point(size=2) +
+  facet_wrap(~Category, scales="free") +
+  theme_bw() +
+  labs(title="Luka Doncic stats - Liga ACB",
+       subtitle="2P%, 3P% and FT%") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        axis.title.y=element_blank())
+```
+
+Luka Doncic had few shot attempts per game in his first season, that's why we get unusual results in the year 2014-15. Let's visualize the histograms of these stats during the years 2015-2018. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Liga ACB - Assists, Points and Rebounds (Histograms)
+ACBmatches %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Category, Value, c(20, 21, 26)) %>%
+  ggplot(aes(x=Value, fill=Category)) +
+  geom_histogram(stat="count", show.legend=FALSE) +
+  facet_wrap(~Category, scales="free") +
+  theme_bw() +
+  labs(title="Luka Doncic stats - Liga ACB",
+       subtitle="Assists, Points and Rebounds (2015-2018)",
+       y="Count") +
+  theme(axis.title.x=element_blank())
+```
+
+What other questions can we answer through the data? I know! For example, what are his favorite rivals? Against which teams does he score more points? Let's see...
+
+```{r fig.align='center'}
+# Liga ACB - He has scored more points against...
+ACBmatches %>%
+  group_by(Opponent) %>%
+  summarise(Points=sum(PTS)) %>%
+  arrange(desc(Points)) %>%
+  head(n=10) %>%
+  ggplot(aes(x=reorder(Opponent, -Points), y=Points)) +
+  geom_bar(aes(fill=Points), stat="identity", show.legend=FALSE) +
+  geom_label(aes(label=Points)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(title="Luka Doncic stats - Liga ACB", 
+       subtitle="He has scored more points against...",
+       x="Team") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) 
+```
+
+To finish with Liga ACB, we are going to see into more detail the 2017-18 season, in which Luka assumed a greater role after the team's star player [Sergio Llull](https://en.wikipedia.org/wiki/Sergio_Llull) suffered a serious injury during EuroBasket 2017. In the following visualization we can see the assists, points and rebounds of all matches during the season 2017-18. 
+
+```{r fig.align='center'}
+# Liga ACB - Assists, Points and Rebounds of all matches (2017-18)
+ACBmatches %>%
+  head(n=37) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Category, Value, c(20, 21, 26)) %>%
+  ggplot(aes(x=Date, y=Value, color=Category, group=Category)) +
+  geom_line(show.legend=FALSE) +
+  geom_point(show.legend=FALSE) +
+  geom_rect(aes(xmin=0, xmax=28.5, ymin=-Inf, ymax=Inf), fill="darkseagreen1", alpha=0.01, show.legend=FALSE) +
+  geom_rect(aes(xmin=28.5, xmax=37.5, ymin=-Inf, ymax=Inf), fill="sandybrown", alpha=0.01, show.legend=FALSE) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank()) +
+  facet_grid(Category ~ ., scales="free") +
+  labs(title="Luka Doncic stats - Liga ACB",
+       subtitle="Assists, Points and Rebounds of all matches (2017-18)
+                                                Regular Season                                                    Playoffs")
+```
+
+In this league, Luka Doncic won the following awards:
+
+* 3× Liga ACB champion (2015, 2016, 2018)
+
+* Liga ACB MVP (2018)
+
+* All-Liga ACB First Team (2018)
+
+* 2× ACB Best Young Player (2017, 2018)
+
+* 3× ACB All-Young Players Team (2016–2018)
+
+Not bad... 
+
+## EuroLeague 
+
+Some context information about this league (official website [here](http://www.euroleague.net/)):
+
+> The EuroLeague, known as the Turkish Airlines EuroLeague for sponsorship reasons, is the top-tier European professional basketball club competition, organized by Euroleague Basketball since 2000. The EuroLeague is made up of 16 teams, which each play each other twice, once at home and once away, in a true league style regular season format, totaling 30 games. The top 8 placed teams at the end of the regular season advance to the playoffs, which are held as four individual 5 game playoff series. The higher placed team in the regular season standings of each playoff match up has home-court advantage in each playoff series, playing 3 out of the 5 games at home. The winners of each of the four playoff series advance to the Final Four, which is held at a predetermined site. The Final Four features two semifinals games, a third place game, and the championship game.
+<div style="text-align: right"> **Reference:** https://en.wikipedia.org/wiki/EuroLeague </div>
+
+On October 16, at age 16, Luka Doncic debuted in the EuroLeague, scoring 2 points in a loss to Khimki. Doncic became the 21st player ever to debut in the EuroLeague before turning 17. As we have done before, let's start analyzing the points, assists and rebounds. 
+
+```{r fig.align='center'}
+# EuroLeague - Assists, Points and Rebounds  
+Euroleaguestats %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Category, Value, c(20, 21, 26)) %>%
+  ggplot(aes(x=Season, y=Value, group=1, color=Category)) +
+  geom_line(show.legend=FALSE) +
+  geom_point(size=2, show.legend=FALSE) +
+  facet_wrap(~Category, scales="free") +
+  theme_bw() +
+  labs(title="Luka Doncic stats - EuroLeague",
+       subtitle="Assists, Points and Rebounds") +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        legend.title=element_blank(),
+        axis.title.y=element_blank())
+```
+
+The trend is quite similar to the one we got before with Liga ACB. And what about the shooting percentages in the EuroLeague? Let's see...
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# EuroLeague - 2P%, 3P% and FT%  
+Euroleaguestats %>%
+  gather(Category, Value, c(11, 14, 17)) %>%
+  ggplot(aes(x=Season, y=Value, group=1, color=Category)) +
+  geom_line(show.legend=FALSE) +
+  geom_point(size=2, show.legend=FALSE) +
+  facet_wrap(~Category, scales="free") +
+  theme_bw() +
+  labs(title="Luka Doncic stats - EuroLeague",
+       subtitle="2P%, 3P% and FT%") +
+  scale_y_continuous(labels = scales::percent) +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        legend.title=element_blank(),
+        axis.title.y=element_blank())
+```
+
+Surprisingly, the free throws percentage gets worse during the three seasons (from 88.2% to 81.6%). The same thing also happens with triples. 
+
+It may be interesting to know if the team relied heavily on Doncic. We are going to compute the percentage of won and lost matches were Doncic scored 15 points or more , and then the same percentage in matches were Doncic scored less than 15 points. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Lost and won matches (%) when Luka Doncic scores more than 10 points
+plot1 <- Euroleaguematches %>%
+  filter(PTS>=15) %>%
+  count(Result) %>%
+  mutate(Result=recode(Result, W="Win", L="Lost")) %>%
+  mutate(Percentage=paste0(round(n/sum(n)*100, 2), "%")) %>%
+  ggplot(aes(x=factor(1), y=n, fill=Result)) + 
+  geom_bar(stat="identity", width=1, size=1, color="white") +
+  coord_polar(theta="y") +
+  labs(title="Lost and won matches (%)", subtitle="when Luka Doncic scores more than 15 points") +
+  theme_void() +
+  theme(legend.title=element_blank()) +
+  geom_text(aes(label=Percentage),
+            position=position_stack(vjust=0.5)) 
+  
+# Lost and won matches (%) when Luka Doncic scores less than 10 points
+plot2 <- Euroleaguematches %>%
+  filter(PTS<15) %>%
+  count(Result) %>%
+  mutate(Result=recode(Result, W="Win", L="Lost")) %>%
+  mutate(Percentage=paste0(round(n/sum(n)*100, 2), "%")) %>%
+  ggplot(aes(x=factor(1), y=n, fill=Result)) + 
+  geom_bar(stat="identity", width=1, size=1, color="white") +
+  coord_polar(theta="y") +
+  labs(title="Lost and won matches (%)", subtitle="when Luka Doncic scores less than 15 points") +
+  theme_void() +
+  theme(legend.title=element_blank()) +
+  geom_text(aes(label=Percentage),
+            position=position_stack(vjust=0.5))
+
+# Subplot
+ggarrange(plot1, plot2, ncol=2, common.legend=TRUE, legend="bottom")
+```
+
+There's not much difference! It seems that the team didn't suffer too much when Doncic wasn't so efficient. After all, Real Madrid is one of the most powerful teams in Europe, with several former NBA players like [Rudy Fernández](https://en.wikipedia.org/wiki/Rudy_Fern%C3%A1ndez_(basketball)), [Anthony Randolph](https://en.wikipedia.org/wiki/Anthony_Randolph), [Gustavo Ayón](https://en.wikipedia.org/wiki/Gustavo_Ay%C3%B3n), [Trey Thompkins](https://en.wikipedia.org/wiki/Trey_Thompkins), [Jeffery Taylor](https://en.wikipedia.org/wiki/Jeffery_Taylor), etc. What are his favorite EuroLeague rivals?
+
+```{r fig.align='center'}
+# EuroLeague - He has scored more points against...
+Euroleaguematches %>%
+  group_by(Opponent) %>%
+  summarise(Points=sum(PTS)) %>%
+  arrange(desc(Points)) %>%
+  head(n=10) %>%
+  ggplot(aes(x=reorder(Opponent, -Points), y=Points)) +
+  geom_bar(aes(fill=Points), stat="identity", show.legend=FALSE) +
+  geom_label(aes(label=Points)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(title="Luka Doncic stats - EuroLeague", 
+       subtitle="He has scored more points against...",
+       x="Team") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) 
+```
+
+Let's analyze the assists, points and rebounds of all matches during the EuroLeague season 2017-18. 
+
+```{r fig.align='center'}
+# EuroLeague - Assists, Points and Rebounds of all matches (2017-18)
+Euroleaguematches %>%
+  slice(48:80) %>%
+  rename(Assists=AST,
+         Points=PTS,
+         Rebounds=TRB) %>%
+  gather(Category, Value, c(20, 21, 26)) %>%
+  ggplot(aes(x=Date, y=Value, color=Category, group=Category)) +
+  geom_line(show.legend=FALSE) +
+  geom_point(show.legend=FALSE) +
+  geom_rect(aes(xmin=0, xmax=27.5, ymin=-Inf, ymax=Inf), fill="darkseagreen1", alpha=0.01, show.legend=FALSE) +
+  geom_rect(aes(xmin=27.5, xmax=31.5, ymin=-Inf, ymax=Inf), fill="sandybrown", alpha=0.01, show.legend=FALSE) +
+  geom_rect(aes(xmin=31.5, xmax=33.5, ymin=-Inf, ymax=Inf), fill="mediumorchid3", alpha=0.01, show.legend=FALSE) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank()) +
+  facet_grid(Category ~ ., scales="free") +
+  labs(title="Luka Doncic stats - EuroLeague",
+       subtitle="Assists, Points and Rebounds of all matches (2017-18)
+                                                   Regular Season                                               Playoffs     Final Four")
+```
+
+Luka Doncic won the following EuroLeague awards: 
+
+* EuroLeague champion (2018)
+
+* EuroLeague MVP (2018)
+
+* EuroLeague Final Four MVP (2018)
+
+* All-EuroLeague First Team (2018)
+
+* 2× EuroLeague Rising Star (2017, 2018)
+
+# **Dallas Mavericks (2018-present)** {.tabset .tabset-fade .tabset-pills}
+
+On June 21, 2018, Doncic was selected with the third overall pick by the Atlanta Hawks in the 2018 NBA draft. He was then traded to the Dallas Mavericks in exchange for the draft rights to [Trae Young](https://es.wikipedia.org/wiki/Trae_Young) and a protected future first round pick in 2019. We cannot analyze the evolution of his statistics throughout the seasons (since it's his first), but we can compare Luka Doncic stats to other superstars' stats in their rookie season. 
+
+For the comparisons, we are going to use stats of historical players like [Michael Jordan](https://en.wikipedia.org/wiki/Michael_Jordan) and [Kobe Bryant](https://en.wikipedia.org/wiki/Kobe_Bryant), and other great current players: [Lebron James](https://en.wikipedia.org/wiki/LeBron_James), [Stephen Curry](https://en.wikipedia.org/wiki/Stephen_Curry), [James Harden](https://en.wikipedia.org/wiki/James_Harden) and [Kevin Durant](https://en.wikipedia.org/wiki/Kevin_Durant). Let's begin analyzing the points scored in their first season!
+
+**NOTE**: The season hasn't ended, so we only use stats of the matches played by Luka up to now (70 games). 
+
+```{r fig.align='center'}
+# Rookie stats comparisons - Points 
+ggplot(data=Rookiestats, aes(x=reorder(Player, -PTS), y=PTS)) +
+  geom_bar(aes(fill=PTS), stat="identity", color="black", show.legend=FALSE) +
+  geom_label(aes(label=PTS)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(title="NBA Rookie stats comparisons", 
+       subtitle="How many points did they score in their first season?",
+       x="Player", y="Points Per Game") +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+        panel.background=element_blank(), axis.line=element_line(colour="black"),
+        axis.title.x=element_blank()) +
+  ylim(0, 40) 
+
+# Image in the visualization (Michael Jordan)
+image <- image_read("../input/jordan.jpg") 
+grid.raster(image, x=0.143, y=0.77, height=0.2)
+
+# Image in the visualization (Luka Doncic)
+image <- image_read("../input/doncic.jpg") 
+grid.raster(image, x=0.27, y=0.64, height=0.2)
+
+# Image in the visualization (Lebron James)
+image <- image_read("../input/james.jpg") 
+grid.raster(image, x=0.4, y=0.64, height=0.2)
+
+# Image in the visualization (Kevin Durant)
+image <- image_read("../input/durant.jpg") 
+grid.raster(image, x=0.53, y=0.64, height=0.2)
+
+# Image in the visualization (Stephen Curry)
+image <- image_read("../input/curry.jpg") 
+grid.raster(image, x=0.655, y=0.58, height=0.2)
+
+# Image in the visualization (James Harden)
+image <- image_read("../input/harden.jpg") 
+grid.raster(image, x=0.785, y=0.42, height=0.2)
+
+# Image in the visualization (Kobe Bryant)
+image <- image_read("../input/bryant.jpg") 
+grid.raster(image, x=0.915, y=0.38, height=0.2)
+```
+
+Amazing! Doncic is scoring more points than Lebron in his first season. And Michael Jordan... well, it's unattainable. Let's continue with the rebounds,
+
+```{r fig.align='center'}
+# Rookie stats comparisons - Rebounds 
+ggplot(data=Rookiestats, aes(x=reorder(Player, -TRB), y=TRB)) +
+  geom_bar(aes(fill=TRB), stat="identity", color="black", show.legend=FALSE) +
+  geom_label(aes(label=TRB)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(title="NBA Rookie stats comparisons", 
+       subtitle="How many rebounds did they get in their first season?",
+       x="Player", y="Rebounds Per Game") +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+        panel.background=element_blank(), axis.line=element_line(colour="black"),
+        axis.title.x=element_blank()) +
+  ylim(0, 15) 
+
+# Image in the visualization (Luka Doncic)
+image <- image_read("../input/doncic.jpg") 
+grid.raster(image, x=0.143, y=0.61, height=0.2)
+
+# Image in the visualization (Michael Jordan)
+image <- image_read("../input/jordan.jpg") 
+grid.raster(image, x=0.27, y=0.57, height=0.2)
+
+# Image in the visualization (Lebron James)
+image <- image_read("../input/james.jpg") 
+grid.raster(image, x=0.4, y=0.52, height=0.2)
+
+# Image in the visualization (Stephen Curry)
+image <- image_read("../input/curry.jpg") 
+grid.raster(image, x=0.53, y=0.47, height=0.2)
+
+# Image in the visualization (Kevin Durant)
+image <- image_read("../input/durant.jpg") 
+grid.raster(image, x=0.655, y=0.46, height=0.2)
+
+# Image in the visualization (James Harden)
+image <- image_read("../input/harden.jpg") 
+grid.raster(image, x=0.785, y=0.39, height=0.2)
+
+# Image in the visualization (Kobe Bryant)
+image <- image_read("../input/bryant.jpg") 
+grid.raster(image, x=0.915, y=0.33, height=0.2)
+```
+
+What a great rebounder! This player will be a Double-Double Machine (and probably Triple-Double). Something curious: Stephen Curry (1,91 m) with more rebounds than Kevin Durant (2,11 m)? Ugh... Finally, let's analyze the assists.
+
+```{r fig.align='center'}
+set.seed(10)
+
+# Rookie stats comparisons - Assists 
+ggplot(data=Rookiestats, aes(x=reorder(Player, -AST), y=AST)) +
+  geom_bar(aes(fill=AST), stat="identity", color="black", show.legend=FALSE) +
+  geom_label(aes(label=AST)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(title="NBA Rookie stats comparisons", 
+       subtitle="How many assists did they make in their first season?",
+       x="Player", y="Assists Per Game") +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+        panel.background=element_blank(), axis.line=element_line(colour="black"),
+        axis.title.x=element_blank()) +
+  ylim(0, 9) 
+
+# Image in the visualization (Lebron James)
+image <- image_read("../input/james.jpg") 
+grid.raster(image, x=0.15, y=0.72, height=0.2)
+
+# Image in the visualization (Luka Doncic)
+image <- image_read("../input/doncic.jpg") 
+grid.raster(image, x=0.27, y=0.72, height=0.2)
+
+# Image in the visualization (Michael Jordan)
+image <- image_read("../input/jordan.jpg") 
+grid.raster(image, x=0.4, y=0.72, height=0.2)
+
+# Image in the visualization (Stephen Curry)
+image <- image_read("../input/curry.jpg") 
+grid.raster(image, x=0.53, y=0.72, height=0.2)
+
+# Image in the visualization (Kevin Durant)
+image <- image_read("../input/durant.jpg") 
+grid.raster(image, x=0.655, y=0.44, height=0.2)
+
+# Image in the visualization (James Harden)
+image <- image_read("../input/harden.jpg") 
+grid.raster(image, x=0.785, y=0.39, height=0.2)
+
+# Image in the visualization (Kobe Bryant)
+image <- image_read("../input/bryant.jpg") 
+grid.raster(image, x=0.915, y=0.34, height=0.2)
+```
+
+What are his favorite NBA rivals?
+
+```{r fig.align='center'}
+# NBA - He has scored more points against...
+NBAmatches %>%
+  mutate_at(vars(PTS), as.numeric) %>%
+  group_by(Opp) %>%
+  summarise(Points=sum(PTS)) %>%
+  arrange(desc(Points)) %>%
+  head(n=7) %>%
+  ggplot(aes(x=reorder(Opp, -Points), y=Points)) +
+  geom_bar(aes(fill=Points), stat="identity", show.legend=FALSE, color="black") +
+  scale_fill_gradient(low="khaki1", high="khaki4") +
+  geom_label(aes(label=Points)) +
+  labs(title="Luka Doncic stats - NBA", 
+       subtitle="He has scored more points against...",
+       x="Team") +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+        panel.background=element_blank(), axis.line=element_line(colour="black"),
+        axis.title.x=element_blank()) +
+  ylim(0, 110) 
+
+# Image in the visualization (New Orleans Pelicans)
+image <- image_read("../input/pelicans.png") 
+grid.raster(image, x=0.145, y=0.78, height=0.15)
+
+# Image in the visualization (Los Angeles Clippers)
+image <- image_read("../input/clippers.png") 
+grid.raster(image, x=0.275, y=0.74, height=0.15)
+
+# Image in the visualization (Portland Trail Blazers)
+image <- image_read("../input/blazers.png") 
+grid.raster(image, x=0.4, y=0.62, height=0.15)
+
+# Image in the visualization (Denver Nuggets)
+image <- image_read("../input/nuggets.png") 
+grid.raster(image, x=0.525, y=0.61, height=0.15)
+
+# Image in the visualization (Golden State Warriors)
+image <- image_read("../input/warriors.png") 
+grid.raster(image, x=0.655, y=0.58, height=0.15)
+
+# Image in the visualization (Cleveland Cavaliers)
+image <- image_read("../input/cavaliers.png") 
+grid.raster(image, x=0.78, y=0.575, height=0.15)
+
+# Image in the visualization (Utah Jazz)
+image <- image_read("../input/jazz.png") 
+grid.raster(image, x=0.91, y=0.55, height=0.12)
+```
+
+Let's analyze some shooting stats: Free Throw Percentage (FT%), 2-Point Field Goal Percentage (2P%) and 3-Point Field Goal Percentage (3P%). 
+
+## FT%
+
+```{r fig.align='center'}
+# Rookie stats comparisons - FT%  
+Rookiestats %>%
+  ggplot(aes(x=reorder(Player, -`FT%`), y=`FT%`)) +
+  geom_bar(aes(fill=`FT%`), stat="identity", position="dodge", color="black", show.legend=FALSE) +
+  geom_label(aes(label=paste0(round(`FT%`*100, 2), "%"))) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(title="NBA Rookie stats comparisons", 
+       subtitle="Free Throw Percentage (FT%) in their first season",
+       x="Team", y="Free Throw Percentage") +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+        panel.background=element_blank(), axis.line=element_line(colour="black"),
+        axis.title.x=element_blank(), legend.position="bottom",
+        legend.title=element_blank()) +
+  scale_y_continuous(labels = scales::percent, limits=c(0, 1.14)) 
+  
+ # Image in the visualization (Stephen Curry)
+image <- image_read("../input/curry.jpg") 
+grid.raster(image, x=0.17, y=0.8, height=0.18)
+
+# Image in the visualization (Kevin Durant)
+image <- image_read("../input/durant.jpg") 
+grid.raster(image, x=0.29, y=0.8, height=0.18)
+
+# Image in the visualization (Michael Jordan)
+image <- image_read("../input/jordan.jpg") 
+grid.raster(image, x=0.41, y=0.78, height=0.18)
+
+# Image in the visualization (Kobe Bryant)
+image <- image_read("../input/bryant.jpg") 
+grid.raster(image, x=0.54, y=0.76, height=0.18)
+
+# Image in the visualization (James Harden)
+image <- image_read("../input/harden.jpg") 
+grid.raster(image, x=0.665, y=0.75, height=0.18)
+
+# Image in the visualization (Lebron James)
+image <- image_read("../input/james.jpg") 
+grid.raster(image, x=0.785, y=0.71, height=0.18)
+
+# Image in the visualization (Luka Doncic)
+image <- image_read("../input/doncic.jpg") 
+grid.raster(image, x=0.915, y=0.68, height=0.18)
+```
+
+## 2P%
+
+```{r fig.align='center'}
+# Rookie stats comparisons - 2P%  
+Rookiestats %>%
+  ggplot(aes(x=reorder(Player, -`2P%`), y=`2P%`)) +
+  geom_bar(aes(fill=`2P%`), stat="identity", position="dodge", color="black", show.legend=FALSE) +
+  geom_label(aes(label=paste0(round(`2P%`*100, 2), "%"))) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(title="NBA Rookie stats comparisons", 
+       subtitle="2-Point Field Goal Percentage (2P%) in their first season",
+       x="Team", y="2-Point Field Goal Percentage") +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+        panel.background=element_blank(), axis.line=element_line(colour="black"),
+        axis.title.x=element_blank(), legend.position="bottom",
+        legend.title=element_blank()) +
+  scale_y_continuous(labels = scales::percent, limits=c(0, 0.75)) 
+  
+ # Image in the visualization (Michael Jordan)
+image <- image_read("../input/jordan.jpg") 
+grid.raster(image, x=0.17, y=0.76, height=0.18)
+
+# Image in the visualization (Luka Doncic)
+image <- image_read("../input/doncic.jpg") 
+grid.raster(image, x=0.295, y=0.73, height=0.18)
+
+# Image in the visualization (Stephen Curry)
+image <- image_read("../input/curry.jpg") 
+grid.raster(image, x=0.415, y=0.7, height=0.18)
+
+# Image in the visualization (Kevin Durant)
+image <- image_read("../input/durant.jpg") 
+grid.raster(image, x=0.54, y=0.69, height=0.18)
+
+# Image in the visualization (Lebron James)
+image <- image_read("../input/james.jpg") 
+grid.raster(image, x=0.665, y=0.67, height=0.18)
+
+# Image in the visualization (Kobe Bryant)
+image <- image_read("../input/bryant.jpg") 
+grid.raster(image, x=0.785, y=0.66, height=0.18)
+
+# Image in the visualization (James Harden)
+image <- image_read("../input/harden.jpg") 
+grid.raster(image, x=0.915, y=0.65, height=0.18)
+```
+
+## 3P%
+
+```{r fig.align='center'}
+# Rookie stats comparisons - 3P%  
+Rookiestats %>%
+  ggplot(aes(x=reorder(Player, -`3P%`), y=`3P%`)) +
+  geom_bar(aes(fill=`3P%`), stat="identity", position="dodge", color="black", show.legend=FALSE) +
+  geom_label(aes(label=paste0(round(`3P%`*100, 2), "%"))) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(title="NBA Rookie stats comparisons", 
+       subtitle="3-Point Field Goal Percentage (3P%) in their first season",
+       x="Team", y="3-Point Field Goal Percentage") +
+  theme(panel.grid.major=element_blank(), panel.grid.minor=element_blank(),
+        panel.background=element_blank(), axis.line=element_line(colour="black"),
+        axis.title.x=element_blank(), legend.position="bottom",
+        legend.title=element_blank()) +
+  scale_y_continuous(labels = scales::percent, limits=c(0, 0.6)) 
+  
+ # Image in the visualization (Stephen Curry)
+image <- image_read("../input/curry.jpg") 
+grid.raster(image, x=0.17, y=0.77, height=0.18)
+
+# Image in the visualization (James Harden)
+image <- image_read("../input/harden.jpg") 
+grid.raster(image, x=0.295, y=0.69, height=0.18)
+
+# Image in the visualization (Kobe Bryant)
+image <- image_read("../input/bryant.jpg") 
+grid.raster(image, x=0.415, y=0.69, height=0.18)
+
+# Image in the visualization (Luka Doncic)
+image <- image_read("../input/doncic.jpg") 
+grid.raster(image, x=0.54, y=0.63, height=0.18)
+
+# Image in the visualization (Lebron James)
+image <- image_read("../input/james.jpg") 
+grid.raster(image, x=0.665, y=0.585, height=0.18)
+
+# Image in the visualization (Kevin Durant)
+image <- image_read("../input/durant.jpg") 
+grid.raster(image, x=0.785, y=0.585, height=0.18)
+
+# Image in the visualization (Michael Jordan)
+image <- image_read("../input/jordan.jpg") 
+grid.raster(image, x=0.915, y=0.45, height=0.18)
+```
+
+# **Summary**
+
+There's not much to discuss after analyzing his stats, it's quite clear that Luka Doncic is not an ordinary player and has a bright future! 
+Doncic and the recent signing Kristaps Porzingis can form one of the most effective duos in the league.
+
+
+# **References**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Alboukadel Kassambara (2018). ggpubr: 'ggplot2' Based Publication Ready Plots. R package version 0.2. https://CRAN.R-project.org/package=ggpubr
+
+Jeroen Ooms (2018). magick: Advanced Graphics and Image-Processing in R. R package version 1.9. https://CRAN.R-project.org/package=magick
+
+R Core Team (2018). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/.
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Yihui Xie (2015) Dynamic Documents with R and knitr. 2nd edition. Chapman and Hall/CRC. ISBN 978-1498716963
+
+Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, editors, Implementing Reproducible Computational Research. Chapman and Hall/CRC. ISBN 978-1466561595

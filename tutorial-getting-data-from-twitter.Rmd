@@ -1,0 +1,341 @@
+---
+title: "**Getting Data from Twitter**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    theme: cosmo
+    highlight: tango
+---
+
+<center><img
+src="https://i.imgur.com/bROptKf.png">
+</center>
+
+# **Introduction**
+
+Hi! In this kernel we are going to learn step by step how to use the Twitter API to capture data, using three different R packages: **twitterR**, **streamR** and **rtweet**.
+Before starting the tutorial, take a look at the following basic prerequisites:
+
+**1**. You have already installed [**R**](https://www.r-project.org/) and are using [**RStudio**](https://www.rstudio.com/).
+
+**2**. You need a [**Twitter application**](https://apps.twitter.com/) and hence a [**Twitter account**](https://twitter.com/). Don't worry if you don't have a Twitter application, 
+in this kernel we are going to explain how to make one.
+
+I hope that once you have read this tutorial, you will be able to easily capture data from Twitter. Let's begin! 
+
+# **Create a Twitter Application**
+
+Using the Twitter API requires an authorized Twitter App and authenticated requests. Let's start creating the Twitter App: 
+
+**1**. Sign in using your Twitter account and open the following link: https://dev.twitter.com/apps
+
+**2**. Click on the button "Create an app". The process consists of the following steps: user profile, account details, use case details, terms of service and email verificacion. 
+
+**3**. Select your user profile to associate. This @username will be the admin of this developer account. For example, in my case, the user profile associated 
+is [@Xavier91vg](https://twitter.com/Xavier91vg).
+
+**4**. Select the option "I am requesting access for my own personal use" and add your account details (account name and primary country of operation). 
+
+**5**. Fill out the form about your project. Here you have to describe what you would like to build with Twitter's API's (minimum characters: 300). 
+
+**6**. Read and agree to the Terms of Service.
+
+**7**. To complete your application, check your inbox to confirm your email address.
+
+**8**. Wait while the application is under review. You'll receive an email when the review is complete.
+
+# **Generating access tokens**
+
+Follow the below steps to generate access tokens for an existing Twitter app:
+
+**1**. Login to your Twitter account on developer.twitter.com.
+
+**2**. Navigate to the Twitter app dashboard and open the Twitter app for which you would like to generate access tokens.
+
+**3**. Navigate to the "Keys and Tokens" page.
+
+**4**. Select "Create" under the "Access token & access token secret" section.
+
+If you have difficulties or doubts creating the Twitter Application and generating the access tokens, you can view this [simple tutorial](https://www.youtube.com/watch?v=M_gGUqhCJoU). 
+
+# **RStudio Set Up: twitteR and streamR packages**
+
+Install the following required packages:
+
+- [**ROAuth**](https://cran.r-project.org/web/packages/ROAuth/index.html). Provides an interface to the OAuth 1.0 specification allowing users to authenticate via OAuth to the 
+server of their choice.
+
+- [**twitteR**](https://cran.r-project.org/web/packages/twitteR/twitteR.pdf). Provides access to the Twitter API. Most functionality of the API is supported, with a bias towards 
+API calls that are more useful in data analysis as opposed to daily interaction.
+
+- [**streamR**](https://cran.r-project.org/web/packages/streamR/index.html). Access to Twitter Streaming API via R. Functions to access Twitter's filter, sample, and user streams,
+and to parse the output into data frames.
+
+```{r eval=FALSE}
+# Install required packages
+install.packages("ROAuth")
+install.packages("twitteR")
+install.packages("streamR")
+```
+
+Once you have installed the packages, run the following script with the API keys and access tokens as input parameters. 
+
+```{r eval=FALSE}
+# Load packages
+require(twitteR)
+library(ROAuth)
+
+# Parameters configuration
+reqURL <- "https://api.twitter.com/oauth/request_token"
+accessURL <- "https://api.twitter.com/oauth/access_token"
+authURL <- "https://api.twitter.com/oauth/authorize"
+
+options(httr_oauth_cache=T)
+
+# Keys and tokens
+consumer_key <- ""   
+consumer_secret <- ""
+access_token <- ""
+access_secret <- ""
+
+# twitteR authentication
+setup_twitter_oauth(consumer_key, consumer_secret, access_token, access_secret)
+
+# streamR authentication
+credentials_file <- "my_oauth.Rdata"
+if (file.exists(credentials_file)){
+    load(credentials_file)
+} else {
+    cred <- OAuthFactory$new(consumerKey=consumer_key, consumerSecret=consumer_secret, requestURL=reqURL, accessURL=accessURL, authURL=authURL)
+    cred$handshake(cainfo=system.file("CurlSSL", "cacert.pem", package="RCurl"))
+    save(cred, file=credentials_file)
+}
+```
+
+We use the [`setup_twitter_oauth()`](https://www.rdocumentation.org/packages/twitteR/versions/1.1.9/topics/setup_twitter_oauth) funtion to set up our authentication. 
+This function takes in the four Twitter credentials that we have generated from the API. 
+
+<center>
+
+|  **Arguments**      |   **Explanation**                           | 
+|:--------------------|:--------------------------------------------|
+|consumer_key         |   The consumer key supplied by Twitter      | 
+|consumer_secret      |   The consumer secret supplied by Twitter   | 
+|access_token         |   The access token supplied by Twitter      | 
+|access_secret        |   The access secret supplied by Twitter     | 
+
+</center> 
+
+Now we are ready to capture some data! 
+
+# **Capturing Twitter data: twitteR and streamR packages**
+
+There are different ways to obtain Twitter data. Two of the main ones are the APIs called REST and Streaming:
+
+- **REST API**. Return any authorized tweets which match the search criteria. This search API searches against a sampling of recent Tweets published in the past 7 days. You can use the
+[`searchTwitter()`](https://www.rdocumentation.org/packages/twitteR/versions/1.1.9/topics/searchTwitter) R function from the twitteR package.
+
+- **Streaming API**. Opens a connection to Twitter's Streaming API that will return public statuses that match one or more filter predicates. In other words, with this API you can capture
+Tweets in real time. Tweets can be filtered by keywords, users, language, and location. You can use the 
+[`filterStream()`](https://www.rdocumentation.org/packages/streamR/versions/0.4.5/topics/filterStream) R function from the streamR package. 
+
+Let's view some examples. 
+
+## REST API examples
+
+In this first example, the function returns the last 20 Spanish tweets containing the hashtag #Obama. 
+
+```{r eval=FALSE}
+# Load library
+library(twitteR)
+
+# Capturing Twitter data 
+tweets <- searchTwitter("#Obama", n=20, lang="es")
+```
+
+In the following example we obtain the last 200 tweets containing the keyword "kaggle". 
+
+```{r eval=FALSE}
+# Load library
+library(twitteR)
+
+# Capturing Twitter data 
+tweets <- searchTwitter("kaggle", n=200)
+```
+
+You can use other parameters to further filter the results. For instance, search Tweets between two dates, 
+
+```{r eval=FALSE}
+# Load library
+library(twitteR)
+
+# Capturing Twitter data 
+tweets <- searchTwitter("kaggle", since='2019-05-09', until='2019-05-10')
+```
+
+Keep in mind that the search index has a 7-day limit!
+
+## Streaming API examples
+
+The following example capture Tweets in real time containing the hashtag #NBA during 60 seconds.
+
+```{r eval=FALSE}
+# Load library
+library(streamR)
+
+# Connect to Twitter stream a get messages
+filterStream("tweets.json", track="#NBA", timeout=60, oauth=cred)
+```
+
+This API provides the captured data encoded using JavaScript Object Notation (JSON). JSON is based on key-value pairs, with named attributes and associated values. These attributes, 
+and their state are used to describe objects. If you want more information about Tweet JSON check 
+[here](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json.html). 
+
+You may want to load the JSON file into RStudio to perform some data analysis. For this purpose you can use two functions from the `streamR` package:
+
+- [`parseTweets()`](https://www.rdocumentation.org/packages/streamR/versions/0.4.5/topics/parseTweets). Parses tweets downloaded using the `filterStream()`, `sampleStream()` 
+or `userStream()` functions and returns a **data frame** where each row corresponds to one tweet and each column represents a different field for each 
+tweet (id, text, created_at, etc.). 
+
+- [`readTweets()`](https://www.rdocumentation.org/packages/streamR/versions/0.4.5/topics/readTweets). This function parses tweets downloaded using `filterStream()`, `sampleStream()` or 
+`userStream()` and returns a **list**.
+
+# **Another approach: rtweet package**
+
+<center><img
+src="https://i.imgur.com/1un9dg8.png">
+</center>
+
+There are several R packages for interacting with Twitter’s APIs. In this section we are going to discover the [rtweet](https://cran.r-project.org/web/packages/rtweet/index.html) package, 
+with which we can capture Twitter data more easily than with the previous ones. In fact, using this package it's no longer necessary to obtain a developer account and create your own 
+Twitter application. All you need is a Twitter account! 
+
+See how rtweet compares to twitterR and streamR in the chart below:
+
+<center><img
+src="https://i.imgur.com/Xctc7zH.png">
+</center>
+
+<div style="text-align: right">  **Reference**: https://rtweet.info/ </div>
+
+Not bad! Let's see some examples in the following subsections. 
+
+## REST API examples
+
+Search for up to 15.000 tweets containing the rstats hashtag.
+
+```{r eval=FALSE}
+# Load library
+library(rtweet)
+
+# Capturing Twitter data 
+tweets <- search_tweets("#rstats", n=15000)
+```
+
+In this second example, we are going to search for 10.000 tweets (non-retweeted) in the English language sent from the US.
+
+```{r eval=FALSE}
+# Load library
+library(rtweet)
+
+# Capturing Twitter data 
+tweets <- search_tweets("lang:en", geocode=lookup_coords("usa"), n=10000, include_rts=FALSE)
+```
+
+The [`search_tweets()`](https://rtweet.info/reference/search_tweets.html) function returns a data frame where each observation (row) is a different tweet.
+
+## Streaming API examples
+
+Stream all geo enabled tweets from London for 60 seconds.
+
+```{r eval=FALSE}
+# Load library
+library(rtweet)
+
+# Capturing Twitter data 
+tweets <- stream_tweets(lookup_coords("london, uk"), timeout=60)
+```
+Stream all tweets mentioning "cats" for 60 seconds. 
+
+```{r eval=FALSE}
+# Load library
+library(rtweet)
+
+# Capturing Twitter data 
+tweets <- stream_tweets("cats", timeout=60)
+```
+
+The [`stream_tweets()`](https://rtweet.info/reference/stream_tweets.html) function returns the tweets data returned as data frame with users data as attribute.
+
+## Other interesting functions
+
+* [`get_friends()`](https://rtweet.info/reference/get_friends.html). Returns a list of user IDs for the accounts following BY one or more specified users.
+
+* [`get_followers()`](https://rtweet.info/reference/get_followers.html). Returns a list of user IDs for the accounts following specified user.
+
+* [`get_timelines()`](https://rtweet.info/reference/get_timeline.html). Returns up to 3.200 statuses posted to the timelines of each of one or more specified Twitter users.
+
+* [`get_favorites()`](https://rtweet.info/reference/get_favorites.html). Returns up to 3.000 statuses favorited by each of one or more specific Twitter users.
+
+* [`get_trends()`](https://rtweet.info/reference/get_trends.html). Get Twitter trends data.
+
+* [`get_mentions()`](https://www.rdocumentation.org/packages/rtweet/versions/0.6.9/topics/get_mentions). Returns data on up to 200 of the most recent mentions of the authenticating user.
+
+* [`get_retweets()`](https://www.rdocumentation.org/packages/rtweet/versions/0.6.9/topics/get_retweets). Returns a collection of the 100 most recent retweets of a given status.
+
+* [`get_retweeters()`](https://www.rdocumentation.org/packages/rtweet/versions/0.6.9/topics/get_retweeters). Returns user IDs of users who retweeted a given status.
+
+You can check all the other rtweet functions [here](https://cran.r-project.org/web/packages/rtweet/rtweet.pdf). 
+
+# **Examples of captured data sets**
+
+- [**Tweets during Real Madrid vs Liverpool (2018 UEFA Champions League Final)**](https://www.kaggle.com/xvivancos/tweets-during-r-madrid-vs-liverpool-ucl-2018). JSON file containing
+Tweets captured during the 2018 UEFA Champions League Final between Real Madrid and Liverpool. I used the `filterStream()` function to open a connection to Twitter's Streaming API,
+using the keyword #UCLFinal. The capture started on Saturday, May 27th 6:45 pm UCT (beginning of the match) and finished on Saturday, May 27th 8:45 pm UCT.
+
+<center><img
+src="https://i.imgur.com/UH2yKBH.png">
+</center>
+
+- [**Tweets during Nintendo E3 2018 Conference**](https://www.kaggle.com/xvivancos/tweets-during-nintendo-e3-2018-conference). JSON file containing Tweets captured during the Nintendo E3 2018
+Conference. I used the `filterStream()` function to open a connection to Twitter's Streaming API, using the keywords #NintendoE3 and #NintendoDirect. The capture started on Tuesday, 
+June 12th 04:00 am UCT and finished on Tuesday, June 12th 05:00 am UCT.
+
+<center><img
+src="https://i.imgur.com/tFEPslS.png">
+</center>
+
+- [**Tweets during Cavaliers vs Warriors (3rd game of the 2018 NBA Finals)**](https://www.kaggle.com/xvivancos/tweets-during-cavaliers-vs-warriors). JSON file containing 
+Tweets captured during the 3rd game of the 2018 NBA Finals between Cleveland Cavaliers and Golden State Warriors. I used the `filterStream()` function to open a connection 
+to Twitter's Streaming API, using the keyword #NBAFinals. The capture started on Thursday, June 7th 01:13 am UCT and finished on Thursday, June 7th 01:58 am UCT.
+
+<center><img
+src="https://i.imgur.com/LEscSOo.png">
+</center>
+
+# **Additional documentation**
+
+- [**Get started with the Twitter developer platform**](https://developer.twitter.com/en/docs/basics/getting-started)
+
+- [**Twitter developer apps**](https://developer.twitter.com/en/docs/basics/apps/overview)
+
+- [**Developer portal**](https://developer.twitter.com/en/docs/basics/developer-portal/overview)
+
+- [**Authentication**](https://developer.twitter.com/en/docs/basics/authentication/overview/oauth)
+
+- [**Tweet objects**](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json.html)
+
+- [**Rate limits**](https://developer.twitter.com/en/docs/basics/rate-limits)
+
+# **Citations for used packages**
+
+Jeff Gentry and Duncan Temple Lang (2015). ROAuth: R Interface For OAuth. R package version 0.9.6. https://CRAN.R-project.org/package=ROAuth
+
+Jeff Gentry (2015). twitteR: R Based Twitter Client. R package version 1.1.9. https://CRAN.R-project.org/package=twitteR
+
+Pablo Barbera (2018). streamR: Access to Twitter Streaming API via R. R package version 0.4.4. https://CRAN.R-project.org/package=streamR
+
+Kearney, M. W. (2019). rtweet: Collecting Twitter Data. R package version 0.6.9 Retrieved from https://cran.r-project.org/package=rtweet

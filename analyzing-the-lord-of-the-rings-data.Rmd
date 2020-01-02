@@ -1,0 +1,930 @@
+---
+title: "**Analyzing The Lord of the Rings data**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    toc: yes
+    number_sections: yes
+    code_folding: hide
+    theme: cosmo
+    highlight: tango
+---
+
+<center><img
+src="https://i.imgur.com/JgaAf3w.jpg">
+</center>
+
+# **Introduction**
+
+Hi! In this kernel we are going to analyze two awesome data sets related to The Lord of the Rings: one containing the scripts from the movies, and the other one with information about the characters of the trilogy (gender, height, race, etc.). 
+The analysis is going to be similar to the Star Wars kernel ([Analyzing Star Wars Movie Scripts](https://www.kaggle.com/xvivancos/analyzing-star-wars-movie-scripts)), but improved with new insights and visualizations. 
+I've always liked the Lord of the Rings, so I'm keen to make this kernel. Let's start!
+
+Some text mining resources I have used as reference in this kernel:
+
+* [Tidy Sentiment Analysis in R](https://www.datacamp.com/community/tutorials/sentiment-analysis-R)
+
+* [Text Mining with R](https://www.tidytextmining.com/)
+
+**NOTES**
+
+* The wordclouds are not produced by the code because I've had problems with the `wordcloud2()` function in Kaggle. In order to solve it, I have produced and exported the images from RStudio and I have published them in [Imgur](https://imgur.com/), using the URLs in this kernel.
+
+* I know that the images I include in the graphics aren't very useful, and they can also distract the reader's attention from what is really important. However, I really wanted to mix visualizations with images to prove and learn new things. In the future I would like to try with GIFs. 
+
+# **Loading Data** {.tabset .tabset-fade .tabset-pills}
+
+First we need to load some libraries and read the movie scripts. 
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(tidyverse)
+library(tm)
+library(wordcloud)
+library(wordcloud2)
+library(tidytext)
+library(reshape2)
+library(RWeka)
+library(knitr)
+library(gridExtra)
+library(grid)
+library(magick)
+library(memery)
+library(ggimage)
+library(igraph)
+library(ggraph)
+
+# Read the data 
+scripts <- read.csv("../input/lord-of-the-rings-data/lotr_scripts.csv", sep=",")
+```
+
+Let's get an idea of what we're working with. One column describes the character name and the other column is a specific sentence from the entire Lord of the Rings dialog.
+
+## First 10 rows 
+```{r}
+# First 10 rows 
+kable(head(scripts))
+```
+
+## Last 10 rows 
+```{r}
+# Last 10 rows 
+kable(tail(scripts))
+```
+
+## Summary 
+```{r}
+# Summary
+kable(summary(scripts))
+```
+
+## Structure
+```{r}
+# Structure 
+str(scripts)
+```
+
+# **Functions**
+
+In this section we are going to define functions to carry out some text mining tasks. The first function performs cleaning and preprocessing steps to a corpus:
+
+* `removePunctuation()`. Remove all punctuation marks
+* `stripWhitespace()`. Remove excess whitespace
+* `tolower()`. Make all characters lowercase
+* `removeWords()`. Remove some common English stop words ("I", "she'll", "the", etc.)
+* `removeNumbers()`. Remove numbers 
+
+```{r}
+# Text transformations
+cleanCorpus <- function(corpus){
+
+  corpus.tmp <- tm_map(corpus, removePunctuation)
+  corpus.tmp <- tm_map(corpus.tmp, stripWhitespace)
+  corpus.tmp <- tm_map(corpus.tmp, content_transformer(tolower))
+  v_stopwords <- c(stopwords("english"), c("thats","weve","hes","theres","ive","im",
+                                           "will","can","cant","dont","youve","us",
+                                           "youre","youll","theyre","whats","didnt"))
+  corpus.tmp <- tm_map(corpus.tmp, removeWords, v_stopwords)
+  corpus.tmp <- tm_map(corpus.tmp, removeNumbers)
+  return(corpus.tmp)
+
+}
+```
+
+The second function constructs the term-document matrix, that describes the frequency of terms that occur in a collection of documents. This matrix has terms in the first column and documents across the top as individual column names.
+
+```{r}
+# Most frequent terms 
+frequentTerms <- function(text){
+
+  s.cor <- VCorpus(VectorSource(text))
+  s.cor.cl <- cleanCorpus(s.cor)
+  s.tdm <- TermDocumentMatrix(s.cor.cl)
+  s.tdm <- removeSparseTerms(s.tdm, 0.999)
+  m <- as.matrix(s.tdm)
+  word_freqs <- sort(rowSums(m), decreasing=TRUE)
+  dm <- data.frame(word=names(word_freqs), freq=word_freqs)
+  return(dm)
+
+}
+```
+
+The next functions extract bigrams and trigams using the `NGramTokenizer()` function from the package `RWeka`. 
+
+```{r}
+# Define bigram tokenizer 
+tokenizer2  <- function(x){
+
+  NGramTokenizer(x, Weka_control(min=2, max=2))
+
+}
+
+# Define trigram tokenizer 
+tokenizer3  <- function(x){
+
+  NGramTokenizer(x, Weka_control(min=3, max=3))
+
+}
+
+# Most frequent bigrams 
+frequentBigrams <- function(text){
+
+  s.cor <- VCorpus(VectorSource(text))
+  s.cor.cl <- cleanCorpus(s.cor)
+  s.tdm <- TermDocumentMatrix(s.cor.cl, control=list(tokenize=tokenizer2))
+  s.tdm <- removeSparseTerms(s.tdm, 0.999)
+  m <- as.matrix(s.tdm)
+  word_freqs <- sort(rowSums(m), decreasing=TRUE)
+  dm <- data.frame(word=names(word_freqs), freq=word_freqs)
+  return(dm)
+
+}
+
+# Most frequent trigrams 
+frequentTrigrams <- function(text){
+
+  s.cor <- VCorpus(VectorSource(text))
+  s.cor.cl <- cleanCorpus(s.cor)
+  s.tdm <- TermDocumentMatrix(s.cor.cl, control=list(tokenize=tokenizer3))
+  s.tdm <- removeSparseTerms(s.tdm, 0.999)
+  m <- as.matrix(s.tdm)
+  word_freqs <- sort(rowSums(m), decreasing=TRUE)
+  dm <- data.frame(word=names(word_freqs), freq=word_freqs)
+  return(dm)
+
+}
+```
+
+# **Data Analysis**
+
+## Dialogues 
+
+What are the characters with the most lines of dialogue of the trilogy? Let's plot some bar charts to discover it. 
+
+```{r fig.align='center'}
+# Top 15 characters with more dialogues (absolute values)
+scripts %>% 
+  count(char) %>%
+  arrange(desc(n)) %>%
+  slice(1:15) %>%
+  ggplot(aes(x=reorder(char, n), y=n)) +
+  geom_bar(stat="identity", aes(fill=n), show.legend=FALSE) + 
+  geom_label(aes(label=n)) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(x="Character", y="Lines of dialogue",
+       title="Lines of dialogue per character (absolute values)") +  
+  coord_flip() +
+  theme_bw()
+ 
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/gollum.gif") 
+grid.raster(image, x=0.9, y=0.25, height=0.25)
+```
+
+<div style="text-align: right"> **Reference**: https://www.deviantart.com/jinndev/art/Gollum-340203110 </div>
+
+It seems that the ring bearer and his best friend are the most talkative characters. We can do the same graph using the relative values instead of the absolutes, comparing to the total lines of dialogue (2.390). 
+
+```{r fig.align='center'}
+# Top 15 characters with more dialogues (relative values)
+scripts %>% 
+  count(char) %>%
+  arrange(desc(n)) %>%
+  slice(1:15) %>%
+  mutate(Percentage=n/nrow(scripts)) %>%
+  ggplot(aes(x=reorder(char, Percentage), y=Percentage)) +
+  geom_bar(stat="identity", aes(fill=Percentage), show.legend=FALSE) + 
+  geom_label(aes(label=paste0(round(Percentage*100, 2), "%"))) +
+  scale_y_continuous(labels=scales::percent) +
+  scale_fill_gradient(low="paleturquoise", high="paleturquoise4") +
+  labs(x="Character", y="Lines of dialogue (%)", 
+       title="Lines of dialogue per character (relative values)") + 
+  coord_flip() +
+  theme_bw()
+
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/sauron.png") 
+grid.raster(image, x=0.85, y=0.26, height=0.34)
+```
+
+<div style="text-align: right"> **Reference**: https://www.deviantart.com/camarao35/art/The-Dark-Lord-Sauron-663401741 </div>
+
+We can also compare the contribution of each character for each movie. Let's consider only the characters with the most lines of dialogue. 
+
+```{r fig.align='center'}
+# Lines of dialogue per character 
+plot1 <- scripts %>%
+  filter(char %in% c("FRODO", "SAM", "GANDALF", "ARAGORN", "PIPPIN",
+                     "MERRY", "GOLLUM", "GIMLI", "THEODEN", "FARAMIR",
+                     "EOWYN", "LEGOLAS", "SMEAGOL", "TREEBEARD", "BILBO")) %>%
+  count(movie, char) %>%
+  ggplot(aes(x=reorder(char, n, sum), y=n)) +
+  geom_bar(stat="identity", aes(fill=movie)) +
+  labs(x="Character", y="Lines of dialogue", 
+       title="Lines of dialogue per character") +
+  theme_bw() +
+  theme(legend.position="bottom",
+        legend.title=element_blank()) +
+  coord_flip()
+
+# Lines of dialogue per movie (%)
+plot2 <- scripts %>%
+  count(movie) %>%
+  mutate(Percentage=paste0(round(n/sum(n)*100, 2), "%")) %>%
+  ggplot(aes(x=factor(1), y=n, fill=movie)) + 
+  geom_bar(stat="identity", width=1, size=1, color="white", show.legend=FALSE) +
+  coord_polar(theta="y") +
+  labs(title="Lines of dialogue per movie (%)") +
+  theme_void() +
+  geom_text(aes(label=Percentage),
+            position=position_stack(vjust = 0.5))
+
+# Subplot
+grid.arrange(plot1, plot2, ncol=2)
+```
+
+The second chapter of the trilogy (The Two Towers) is the movie with the most dialogues. We can also see how some characters don't appear in the first chapter, like Faramir or Eowyn, for example. 
+
+## Sentiment Analysis 
+
+Let’s address the topic of opinion mining or sentiment analysis. We can use the tools of text mining to approach the emotional content of text programmatically.
+
+```{r}
+# Transform the text to a tidy data structure with one token per row
+tokens <- scripts %>%  
+  mutate(dialogue=as.character(scripts$dialog)) %>%
+  unnest_tokens(word, dialogue)
+```
+
+First we are going to use the general-purpose lexicon `bing`, from [Bing Liu and collaborators](https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html). 
+The `bing` lexicon categorizes words in a binary fashion into positive and negative categories. We can use the function `comparison.cloud()` to visualize the words. 
+
+```{r message=FALSE, fig.align='center'}
+# Positive and negative words
+tokens %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort=TRUE) %>%
+  acast(word ~ sentiment, value.var="n", fill=0) %>%
+  comparison.cloud(colors=c("#F8766D", "#00BFC4"), max.words=100)
+```
+
+The `nrc` lexicon (from [Saif Mohammad and Peter Turney](http://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm)) categorizes words in a binary fashion into categories of positive, negative, anger, anticipation, disgust, fear, joy, sadness, surprise, and trust. Let's discover the most predominant sentiments during the trilogy.
+
+```{r message=FALSE, fig.align='center'}
+# Frequency associated with each sentiment  
+sentiments <- tokens %>% 
+  inner_join(get_sentiments("nrc")) %>%
+  count(sentiment, sort=TRUE) 
+
+# Visualization
+ggplot(data=sentiments, aes(x=reorder(sentiment, n), y=n)) + 
+  geom_bar(stat="identity", aes(fill=sentiment), show.legend=FALSE) +
+  geom_label(label=sentiments$n) +
+  labs(x="Sentiment", y="Frequency", 
+       title="The Lord of the Rings Trilogy - Sentiment Analysis (NRC lexicon)") +
+  coord_flip() +
+  theme_bw()
+
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/balrog.png") 
+grid.raster(image, x=0.85, y=0.28, height=0.34)
+```
+
+<div style="text-align: right"> **Reference**: http://mugenguild.com/forum/topics/the-dark-lord-sauron-lord-rings-project-178389.60.html </div>
+
+Apart from the positive and negative words, there's so much fear in this trilogy! Fortunately, the trust sentiment also stands out. It's possible that this feeling comes from the confidence of the characters towards Frodo and his mission to destroy the ring. We can expand the analysis and study the feelings for each film of the trilogy.
+
+```{r message=FALSE, fig.align='center'}
+# Sentiment Analysis - The Fellowship of the Ring 
+sentiments1 <- tokens %>%
+  filter(movie=="The Fellowship of the Ring ") %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(sentiment, sort=TRUE) 
+
+# Sentiment Analysis - The Two Towers 
+sentiments2 <- tokens %>%
+  filter(movie=="The Two Towers ") %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(sentiment, sort=TRUE) 
+
+# Sentiment Analysis - The Return of the King 
+sentiments3 <- tokens %>%
+  filter(movie=="The Return of the King ") %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(sentiment, sort=TRUE) 
+
+# Data frame 
+sentiments1$Movie <- rep("The Fellowship of the Ring", 10)
+sentiments2$Movie <- rep("The Two Towers", 10)
+sentiments3$Movie <- rep("The Return of the King", 10)
+sentiments123 <- rbind(sentiments1, sentiments2, sentiments3)
+
+# Visualization
+ggplot(data=sentiments123, aes(x=reorder(sentiment, n, sum), y=n)) +
+  geom_bar(stat="identity", aes(fill=Movie)) +
+  geom_text(aes(label=n, group=Movie), position=position_stack(vjust=0.5)) +
+  labs(x="Sentiment", y="Frequency", 
+       title="Sentiment Analysis for each movie (NRC lexicon)") +
+  theme_bw() +
+  theme(legend.title=element_blank()) +
+  coord_flip()
+
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/legolas.png") 
+grid.raster(image, x=0.6, y=0.28, height=0.34)
+```
+
+<div style="text-align: right"> **Reference**: https://www.deviantart.com/nezz94/art/Legolas-Pixel-Art-2-553279196 </div>
+
+We can discover something curious with this visualization. The Two Towers is the movie with the most dialogues (as we saw in the previous plot), but not the one that has more associated sentiments. 
+Maybe it's because The Two Towers is a movie with more action. We can also use this lexicon to compute the most frequent words for each sentiment.
+
+```{r message=FALSE, fig.align='center'}
+# Top 10 frequent terms for each sentiment
+ tokens %>% 
+  inner_join(get_sentiments("nrc")) %>%
+  count(sentiment, word, sort=TRUE) %>%
+  group_by(sentiment) %>%
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(word, n), y=n)) +
+  geom_col(aes(fill=sentiment), show.legend=FALSE) +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  facet_wrap(~sentiment, scales="free_y") +
+  labs(y="Frequency", x="Words", 
+       title="Most frequent terms for each sentiment (NRC lexicon)") +
+  coord_flip() +
+  theme_bw()
+
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/logo.png") 
+grid.raster(image, x=0.78, y=0.2, height=0.15)
+```
+
+So much death in this trilogy! The word 'death' is the most frequent in up to three sentiments (anger, fear and sadness) and also appears in other categories (disgust, negative and surprise). Let's perform a sentiment analysis for each character. 
+
+```{r message=FALSE, fig.align='center'}
+# Sentiment Analysis for the Top 10 characters with more dialogues
+tokens %>%
+  filter(char %in% c("FRODO","SAM","GANDALF","ARAGORN","PIPPIN",
+                     "MERRY","GOLLUM","GIMLI","THEODEN","FARAMIR")) %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(char, sentiment, sort=TRUE) %>%
+  ggplot(aes(x=sentiment, y=n)) +
+  geom_col(aes(fill=sentiment), show.legend=FALSE) +
+  facet_wrap(~char, scales="free_x") +
+  labs(x="Sentiment", y="Frequency", 
+       title="Sentiment Analysis for each character (NRC lexicon)") +
+  coord_flip() +
+  theme_bw()
+
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/logo.png") 
+grid.raster(image, x=0.78, y=0.2, height=0.15)
+```
+
+Finally, we are going to use the `AFINN` lexicon, from [Finn Årup Nielsen](http://www2.imm.dtu.dk/pubdb/views/publication_details.php?id=6010). 
+This lexicon assigns words with a score that runs between -5 and 5, with negative scores indicating negative sentiment and positive scores indicating positive sentiment. Let's see the word distribution according to the `AFINN` lexicon.  
+
+```{r message=FALSE, fig.align='center', fig.height=10, fig.width=10}
+# Word distribution according to the AFINN lexicon
+plot <- tokens %>% 
+  inner_join(get_sentiments("afinn")) %>%
+  count(score, sort=TRUE) %>%
+  ggplot(aes(x=score, y=n)) +
+  geom_bar(stat="identity", aes(fill=n), show.legend=FALSE, width=0.5) +
+  geom_label(aes(label=n)) +
+  scale_fill_gradient(low="thistle1", high="thistle4") +
+  scale_x_continuous(breaks=seq(-3, 4, 1)) +
+  labs(x="Score", y="Frequency", title="Word distribution (AFINN lexicon)") +
+  theme_bw() 
+
+# Load the background image
+img <- "../input/the-lord-of-the-rings-figures/gollum.png" 
+
+# Turn off the label
+lab <- ""  
+
+# Overlay the plot on the image and create the meme file
+pos <- list(w=1, h=0.75, x=0.5, y=0.5)
+meme(img, lab, "gollum.jpg", inset=plot, inset_pos=pos)
+
+# Read the file back in and display it!
+meme <- image_read("gollum.jpg")
+plot(meme)
+```
+
+It's curious, because using the `nrc` lexicon we get more positive than negative words. However, using the `AFINN` lexicon happens the opposite. We should look at what words contribute the most to positive and negative sentiments, multiplying the sentiment score by the number of ocurrences.
+
+```{r message=FALSE, fig.align='center', fig.height=7, fig.width=7}
+# Contribution 
+plot <- tokens %>% 
+  inner_join(get_sentiments("afinn")) %>%
+  count(word, score, sort=TRUE) %>%
+  mutate(contribution=n*score) %>%
+  arrange(desc(abs(contribution))) %>%
+  head(20) %>%
+  ggplot(aes(x=reorder(word, contribution), y=contribution, fill=n*score>0)) +
+  geom_col(show.legend=FALSE) +
+  labs(x="Words", y="Sentiment score * Number of ocurrences") +
+  coord_flip() +
+  theme_bw() +
+  theme(legend.position="none")
+
+# Load the background image
+img <- "../input/the-lord-of-the-rings-figures/saruman.png" 
+
+# Turn off the label
+lab <- ""  
+
+# Overlay the plot on the image and create the meme file
+pos <- list(w=0.43, h=0.65, x=0.26, y=0.335)
+meme(img, lab, "saruman.jpg", inset=plot, inset_pos=pos, inset_bg=list(fill="#FF000080"))
+
+# Read the file back in and display it!
+meme <- image_read("saruman.jpg")
+plot(meme)
+```
+
+<div style="text-align: right"> **Reference**: https://www.deviantart.com/ladywitchfox/art/Saruman-Pixel-Art-539009165 </div>
+
+As we can see, 'good' is the word that contributes the most to positive sentiments. On the other hand, 'no' is the term that contributes the most to negative sentiments. 
+
+## Most frequent words, bigrams and trigrams
+
+Let's generate some wordclouds to discover the most frequent words for each movie! Furthermore, in this section we are going to compute the most repeated bigrams and trigrams. 
+What's a bigram? It's a sequence of two adjacent elements from a string of tokens, which are typically letters, syllables, or words. A trigram is the same but with three adjacent elements.
+
+### The Fellowship of the Ring
+
+```{r fig.align='center', warning=FALSE, echo=TRUE, results='hide'}
+# wordcloud2 library
+# library(devtools)
+# devtools::install_github("lchiffon/wordcloud2")
+
+# Scripts - The Fellowship of the Ring
+scripts1 <- scripts %>%
+  filter(movie=="The Fellowship of the Ring ") 
+
+# Wordcloud - The Fellowship of the Ring
+wordcloud2(frequentTerms(iconv(scripts1$dialog, from="UTF-8", to="ASCII//TRANSLIT")), size=0.3,
+           figPath="../input/the-lord-of-the-rings-figures/gollum_mask.jpg", fontFamily="HersheySymbol")
+```
+
+<center><img
+src="https://i.imgur.com/tt5qAng.png">
+</center>
+
+```{r fig.align='center'}
+# Bigrams - The Fellowship of the Ring
+bigrams1 <- frequentBigrams(iconv(scripts1$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
+
+plot1 <- ggplot(data=bigrams1, aes(x=reorder(word, freq), y=freq)) +  
+  geom_bar(stat="identity", aes(fill=freq), show.legend=FALSE) +
+  geom_label(label=bigrams1$freq) +
+  scale_fill_gradient(low="darkorange", high="darkorange4") +
+  labs(x="Bigram", y="Frequency") +
+  coord_flip() +
+  theme_bw() 
+
+# Trigrams - The Fellowship of the Ring
+trigrams1 <- frequentTrigrams(iconv(scripts1$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
+
+plot2 <- ggplot(data=trigrams1, aes(x=reorder(word, freq), y=freq)) +  
+  geom_bar(stat="identity", aes(fill=freq), show.legend=FALSE) +
+  geom_label(label=trigrams1$freq) +
+  scale_fill_gradient(low="darkseagreen1", high="darkseagreen4") +
+  labs(x="Trigram", y="Frequency") +
+  coord_flip() +
+  theme_bw() 
+
+# Subplot
+grid.arrange(plot1, plot2, ncol=2, top="Bigrams and Trigrams - The Fellowship of the Ring")
+```
+
+### The Two Towers
+
+```{r warning=FALSE, fig.align='center', echo=TRUE, results='hide'}
+# Scripts - The Two Towers
+scripts2 <- scripts %>%
+  filter(movie=="The Two Towers ")
+
+# Wordcloud - The Two Towers
+wordcloud2(frequentTerms(iconv(scripts2$dialog, from="UTF-8", to="ASCII//TRANSLIT")), size=0.3,
+           figPath="../input/the-lord-of-the-rings-figures/gandalf_mask.png", fontFamily="HersheySymbol")
+```
+
+<center><img
+src="https://i.imgur.com/bi8aRv3.png">
+</center>
+
+```{r fig.align='center'}
+# Bigrams - The Two Towers
+bigrams2 <- frequentBigrams(iconv(scripts2$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
+
+# Bigrams visualization 
+plot1 <- ggplot(data=bigrams2, aes(x=reorder(word, freq), y=freq)) +  
+  geom_bar(stat="identity", aes(fill=freq), show.legend=FALSE) +
+  geom_label(label=bigrams2$freq) +
+  scale_fill_gradient(low="darkorange", high="darkorange4") +
+  labs(x="Bigram", y="Frequency") +
+  coord_flip() +
+  theme_bw() 
+
+# Trigrams - The Two Towers
+trigrams2 <- frequentTrigrams(iconv(scripts2$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
+
+# Trigrams visualization 
+plot2 <- ggplot(data=trigrams2, aes(x=reorder(word, freq), y=freq)) +  
+  geom_bar(stat="identity", aes(fill=freq), show.legend=FALSE) +
+  geom_label(label=trigrams2$freq) +
+  scale_fill_gradient(low="darkseagreen1", high="darkseagreen4") +
+  labs(x="Trigram", y="Frequency") +
+  coord_flip() +
+  theme_bw() 
+
+# Subplot
+grid.arrange(plot1, plot2, ncol=2, top="Bigrams and Trigrams - The Two Towers")
+```
+
+### The Return of the King
+
+```{r warning=FALSE, fig.align='center', echo=TRUE, results='hide'}
+# Scripts - The Return of the King
+scripts3 <- scripts %>%
+  filter(movie=="The Return of the King ")
+
+# Wordcloud - The Return of the King
+wordcloud2(frequentTerms(iconv(scripts3$dialog, from="UTF-8", to="ASCII//TRANSLIT")), size=0.3,
+           figPath="../input/the-lord-of-the-rings-figures/frodo_mask.jpg", fontFamily="HersheySymbol")
+```
+
+<center><img
+src="https://i.imgur.com/CY1KBkp.png">
+</center>
+
+```{r fig.align='center'}
+# Bigrams - The Return of the King
+bigrams3 <- frequentBigrams(iconv(scripts3$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
+
+# Bigrams visualization
+plot1 <- ggplot(data=bigrams3, aes(x=reorder(word, freq), y=freq)) +  
+  geom_bar(stat="identity", aes(fill=freq), show.legend=FALSE) +
+  geom_label(label=bigrams3$freq) +
+  scale_fill_gradient(low="darkorange", high="darkorange4") +
+  labs(x="Bigram", y="Frequency") +
+  coord_flip() +
+  theme_bw() 
+
+# Trigrams - The Return of the King
+trigrams3 <- frequentTrigrams(iconv(scripts3$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
+
+# Trigrams visualization
+plot2 <- ggplot(data=trigrams3, aes(x=reorder(word, freq), y=freq)) +  
+  geom_bar(stat="identity", aes(fill=freq), show.legend=FALSE) +
+  geom_label(label=trigrams3$freq) +
+  scale_fill_gradient(low="darkseagreen1", high="darkseagreen4") +
+  labs(x="Trigram", y="Frequency") +
+  coord_flip() +
+  theme_bw() 
+
+# Subplot
+grid.arrange(plot1, plot2, ncol=2, top="Bigrams and Trigrams - The Return of the King")
+```
+
+### Network of bigrams  
+
+We may be interested in visualizing all of the relationships among words simultaneously. As one common visualization, we can arrange the words into a network. Let's plot the bigrams of the trilogy!
+
+```{r fig.align='center'}
+# Bigrams of the trilogy
+bigrams <- frequentBigrams(iconv(scripts$dialog, from="UTF-8", to="ASCII//TRANSLIT"))
+
+# Words in different columns to create the graph
+bigrams_separated <- bigrams %>%
+  separate(word, c("word1", "word2"), sep=" ")
+
+# Create an igraph object
+bigrams_graph <- bigrams_separated %>%
+  filter(freq>3) %>%
+  graph_from_data_frame() 
+  
+set.seed(2016)
+
+# Create and draw arrows 
+a <- grid::arrow(type="closed", length=unit(0.15, "inches"))
+
+# ggraph visualization
+ggraph(bigrams_graph, layout="fr") +
+  geom_edge_link(aes(edge_alpha=freq), show.legend = FALSE,
+                 arrow=a, end_cap=circle(0.07, 'inches')) +
+  geom_node_point(color="lightblue", size=5) +
+  geom_node_text(aes(label=name), vjust=1, hjust=1) +
+  theme_void()
+```
+
+### Most frequent words by character
+
+In the following visualizations we only consider the Top 10 characters with more dialogues.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Stopwords
+mystopwords <- data_frame(word=c(stopwords("english"), 
+                                 c("thats","weve","hes","theres","ive","im",
+                                   "will","can","cant","dont","youve","us",
+                                   "youre","youll","theyre","whats","didnt", "â")))
+
+# Tokens without stopwords
+top.chars.tokens <- scripts %>%
+  mutate(dialogue=as.character(scripts$dialog)) %>%
+  filter(char %in% c("FRODO","SAM","GANDALF","ARAGORN","PIPPIN",
+                     "MERRY","GOLLUM","GIMLI","THEODEN","FARAMIR")) %>%
+  unnest_tokens(word, dialogue) %>%
+  anti_join(mystopwords, by="word")
+
+# Most frequent words for each character
+top.chars.tokens %>%
+  count(char, word) %>%
+  group_by(char) %>% 
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ungroup() %>%
+  mutate(word2=factor(paste(word, char, sep="__"), 
+                       levels=rev(paste(word, char, sep="__"))))%>%
+  ggplot(aes(x=word2, y=n)) +
+  geom_col(aes(fill=char), show.legend=FALSE) +
+  facet_wrap(~char, scales="free_y") +
+  labs(x="Sentiment", y="Frequency", 
+       title="Most frequent words for each character") +
+  scale_x_discrete(labels=function(x) gsub("__.+$", "", x)) +
+  coord_flip() +
+  theme_bw()
+
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/nazgul.png") 
+grid.raster(image, x=0.78, y=0.25, height=0.34)
+```
+
+We can use the `bind_tf_idf()` function to obtain more relevant and characteristic terms associated with each character. The idea of [`tf–idf`](https://en.wikipedia.org/wiki/Tf%E2%80%93idf) (_term frequency_ - _inverse document frequency_) is to find the important words for the content of each document by decreasing the weight for commonly used words and increasing the weight for words that are not used very much in a collection or corpus of documents. If the term appears in all documents, it is not likely to be insightful.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Most relevant words for each character
+top.chars.tokens %>%
+  count(char, word) %>%
+  bind_tf_idf(word, char, n) %>%
+  group_by(char) %>% 
+  arrange(desc(tf_idf)) %>%
+  slice(1:10) %>%
+  ungroup() %>%
+  mutate(word2=factor(paste(word, char, sep="__"), 
+                       levels=rev(paste(word, char, sep="__"))))%>%
+  ggplot(aes(x=word2, y=tf_idf)) +
+  geom_col(aes(fill=char), show.legend=FALSE) +
+  facet_wrap(~char, scales="free_y") +
+  labs(y="tf–idf", x="Sentiment", 
+       title="Most frequent words for each character (tf-idf)") +
+  scale_x_discrete(labels=function(x) gsub("__.+$", "", x)) +
+  coord_flip() +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) 
+
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/fellowship.png") 
+grid.raster(image, x=0.76, y=0.22, height=0.2)
+```
+
+<div style="text-align: right"> **Reference**: https://www.deviantart.com/lustriouscharming/art/Lord-of-the-Rings-Characters-8-bit-605818092 </div>
+
+# **Lord of the rings characters data set**
+
+Let's analize the other data set containing information about the characters of the trilogy (gender, height, race, realm, etc.).
+
+## Loading data {.tabset .tabset-fade .tabset-pills}
+
+First we need to read the characters data set.  
+
+```{r}
+# Read the data 
+characters <- read.csv("../input/lord-of-the-rings-data/lotr_characters.csv", sep=",")
+```
+
+Let's get an idea of what we're working with. The data set has 911 rows and 9 columns with the following attributes: birth, death, gender, hair, height, name, race, realm and spouse. 
+
+### First 10 rows 
+```{r}
+# First 10 rows 
+kable(head(characters))
+```
+
+### Last 10 rows 
+```{r}
+# Last 10 rows 
+kable(tail(characters))
+```
+
+### Summary 
+```{r}
+# Summary
+kable(summary(characters))
+```
+
+### Structure
+```{r}
+# Structure 
+str(characters)
+```
+
+## Data Analysis 
+
+What are the most predominant races in the middle earth? Let's see!
+
+```{r message=FALSE, fig.align='center', fig.height=10, fig.width=10}
+# Races visualization 
+plot <- characters %>%
+  filter(race!="") %>%
+  mutate(race=fct_recode(race, "Hobbits"="Hobbit")) %>%
+  count(race) %>%
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(race, n), y=n)) +
+  geom_bar(stat="identity", aes(fill=n), show.legend=FALSE) +
+  geom_label(aes(label=n)) +
+  scale_fill_gradient(low="orange", high="orange4") +
+  labs(x="Race", y="Frequency", title="Middle-earth races") +
+  coord_flip() +
+  theme_bw()
+
+# Load the background image
+img <- "../input/the-lord-of-the-rings-figures/tower.png" 
+
+# Turn off the label
+lab <- ""  
+
+# Overlay the plot on the image and create the meme file
+pos <- list(w=0.467, h=0.696, x=0.251, y=0.468)
+meme(img, lab, "tower.jpg", inset=plot, inset_pos=pos, inset_bg=list(fill="#FF000080"))
+
+# Read the file back in and display it!
+meme <- image_read("tower.jpg")
+plot(meme)
+```
+
+<div style="text-align: right"> **Reference**: https://www.deviantart.com/mihneasto/art/Sauron-595374880 </div>
+
+It seems that the most predominant race are humans. Let's learn about the gender of the characters.
+
+```{r fig.align='center'}
+# Gender (%)
+characters %>%
+  filter(!gender %in% c("", "male", "Males", "Most likely male")) %>%
+  count(gender) %>%
+  mutate(Percentage=paste0(round(n/sum(n)*100, 2), "%")) %>%
+  ggplot(aes(x=factor(1), y=n, fill=gender)) + 
+  geom_bar(stat="identity", width=1, size=1, color="white") +
+  coord_polar(theta="y") +
+  labs(title="Characters gender (%)") +
+  theme_void() +
+  geom_text(aes(label=Percentage),
+            position=position_stack(vjust = 0.5))
+```
+
+Let's discover how many men and women are for each race. 
+
+```{r fig.align='center'}
+# Middle-eartch races per gender
+characters %>%
+  filter(race!="") %>%
+  mutate(race=fct_recode(race, "Hobbits"="Hobbit")) %>%
+  count(race, gender) %>%
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(race, -n), y=n)) +
+  geom_bar(stat="identity", aes(fill=gender)) +
+  geom_text(aes(label=n, group=gender), position=position_stack(vjust=0.5)) +
+  labs(x="Race", y="Frequency", title="Middle-earth races per gender") +
+  theme_bw() 
+
+# Image in the visualization 
+image <- image_read("../input/the-lord-of-the-rings-figures/nazgul2.png") 
+grid.raster(image, x=0.6, y=0.75, height=0.5)
+```
+
+<div style="text-align: right"> **Reference**: http://mugenguild.com/forum/index.php?action=profile;u=76664;area=showposts;start=180 </div>
+
+The number of men is significantly higher than the number of women. Fiction needs more gender equality! What about the realms? 
+
+```{r fig.align='center'}
+# Realms 
+characters %>%
+  filter(realm!="") %>%
+  mutate(realm=fct_recode(realm, "Arnor"="Arthedain,Arnor")) %>%
+  count(realm) %>%
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(realm, n), y=n)) +
+  geom_bar(stat="identity", aes(fill=n), show.legend=FALSE) +
+  geom_label(aes(label=n)) +
+  scale_fill_gradient(low="wheat", high="wheat4") +
+  labs(x="Realm", y="Frequency", title="Middle-earth realms") +
+  theme_bw() +
+  coord_flip()
+```
+
+Many characters have this field empty, so that's why we get less values. As we can see, Gondor is the kingdom with the most characters, followed by Númenor and Rohan. Finally,
+let's analyze the hair colors of the characters. 
+
+```{r fig.align='center'}
+# Hair colors
+characters %>%
+  filter(hair!="", hair!="None") %>%
+  count(hair) %>%
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(hair, n), y=n)) +
+  geom_bar(stat="identity", aes(fill=n), show.legend=FALSE) +
+  geom_label(aes(label=n)) +
+  scale_fill_gradient(low="lightgoldenrod", high="lightgoldenrod4") +
+  labs(x="Color", y="Frequency", title="Hair colors") +
+  theme_bw() +
+  coord_flip()
+```
+
+As in the previous case, many characters have this field empty, so we also get less values. 
+
+# **Summary**
+
+In this entry we have analyzed two awesome data sets related to The Lord of the Rings by performing a statistical text analysis, including:
+
+* Most talkative characters
+* Most frequent words, bigrams and trigrams for each movie 
+* Network of bigrams
+* Most frequent words for each character
+* Most relevant words for each character using the statistic `tf–idf`
+* Sentiment analysis using the lexicons `bing`, `nrc` and `AFINN`
+* Some visualizations with information about the characters (gender, realm, race, etc.)
+
+It has been a pleasure to make this post, I have learned a lot! Thank you for reading and if you like it, please upvote it. Remember that you can visit my other text mining kernel about 
+the Star wars original trilogy [here](https://www.kaggle.com/xvivancos/analyzing-star-wars-movie-scripts).
+
+# **References**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the ‘Tidyverse’. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Ingo Feinerer and Kurt Hornik (2018). tm: Text Mining Package. R package version 0.7-5. https://CRAN.R-project.org/package=tm
+
+Ingo Feinerer, Kurt Hornik, and David Meyer (2008). Text Mining Infrastructure in R. Journal of Statistical Software 25(5): 1-54. URL: http://www.jstatsoft.org/v25/i05/.
+
+Ian Fellows (2014). wordcloud: Word Clouds. R package version 2.5. https://CRAN.R-project.org/package=wordcloud
+
+Dawei Lang (NA). wordcloud2: Create Word Cloud by htmlWidget. R package version 0.2.2. https://github.com/lchiffon/wordcloud2
+
+Silge J, Robinson D (2016). “tidytext: Text Mining and Analysis Using Tidy Data Principles in R.” _JOSS_, *1*(3). doi:
+10.21105/joss.00037 (URL: http://doi.org/10.21105/joss.00037), <URL: http://dx.doi.org/10.21105/joss.00037>.
+
+Hadley Wickham (2007). Reshaping Data with the reshape Package. Journal of Statistical Software, 21(12), 1-20. URL http://www.jstatsoft.org/v21/i12/.
+
+Hornik K, Buchta C, Zeileis A (2009). “Open-Source Machine Learning: R Meets Weka.” _Computational Statistics_, *24*(2), 225-232.
+doi: 10.1007/s00180-008-0119-7 (URL: http://doi.org/10.1007/s00180-008-0119-7).
+
+Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation in R. R package version 1.20.
+
+Yihui Xie (2015) Dynamic Documents with R and knitr. 2nd edition. Chapman and Hall/CRC. ISBN 978-1498716963
+
+Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, editors, Implementing Reproducible Computational Research. Chapman and Hall/CRC. ISBN 978-1466561595
+
+Baptiste Auguie (2017). gridExtra: Miscellaneous Functions for "Grid" Graphics. R package version 2.3. https://CRAN.R-project.org/package=gridExtra
+
+R Core Team (2018). R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. URL https://www.R-project.org/.
+
+Jeroen Ooms (2018). magick: Advanced Graphics and Image-Processing in R. R package version 1.9. https://CRAN.R-project.org/package=magick
+
+Matthew Leonawicz (2018). memery: Internet Memes for Data Analysts. R package version 0.5.0. https://CRAN.R-project.org/package=memery
+
+Guangchuang Yu (2018). ggimage: Use Image in 'ggplot2'. R package version 0.1.7. https://CRAN.R-project.org/package=ggimage
+
+Csardi G, Nepusz T: The igraph software package for complex network research, InterJournal, Complex Systems 1695. 2006.
+http://igraph.org
+
+Thomas Lin Pedersen (2018). ggraph: An Implementation of Grammar of Graphics for Graphs and Networks. R package version 1.0.2.
+https://CRAN.R-project.org/package=ggraph

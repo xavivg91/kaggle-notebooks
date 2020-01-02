@@ -1,0 +1,779 @@
+---
+title: "**EDA - Tweets during Cleveland Cavaliers vs Golden State Warriors**"
+author: "Xavier Vivancos García"
+date: '`r Sys.Date()`'
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    theme: cosmo
+    highlight: tango
+---
+
+# **Introduction**
+
+Hi! I've been away from Kaggle for a few days cause I've been working on my Master's Degree Final Project, but I'm coming back with this kernel. 
+I'm a big fan of basketball and I'm excited with the 2018 NBA Finals between Cleveland Cavaliers and Golden State Warriors. Four straight NBA Finals with the same teams!
+Personally, I think Stephen Curry's team is going to win the championship again, Lebron James is all alone. 
+
+In this kernel we are going to analyze Tweets captured during the 3rd game of the 2018 NBA Finals on Thursday, June 7th. Let's begin!
+
+**EDIT**: Warriors win 2018 NBA title, blow out Cavs in Game 4 108-85.
+
+<center><img
+src="https://i.imgur.com/wcgGVJ2.gif" width="500" height="500">
+</center>
+
+# **Capturing Twitter data**
+
+In order to capture Twitter data, you have to follow the next steps:
+
+1. You need a [Twitter application](https://apps.twitter.com/) and hence a [Twitter account](https://twitter.com/).
+
+2. After registration, grab your API keys and access tokens from Twitter: Consumer Key, Consumer Secret, Access Token and Access Token Secret. 
+
+3. Install [twitteR](https://cran.r-project.org/web/packages/twitteR/index.html) and [ROAuth](https://cran.r-project.org/web/packages/ROAuth/index.html) packages in RStudio environment.
+
+4. Run the following script with the API keys and access tokens as input parameters. 
+
+```{r eval=FALSE}
+require(twitteR)
+library(ROAuth)
+
+# Parameters configuration
+
+reqURL <- "https://api.twitter.com/oauth/request_token"
+accessURL <- "https://api.twitter.com/oauth/access_token"
+authURL <- "https://api.twitter.com/oauth/authorize"
+
+options(httr_oauth_cache=T)
+
+consumer_key <- ""
+consumer_secret <- ""
+access_token <- ""
+access_secret <- ""
+
+# twitteR authentication
+setup_twitter_oauth(consumer_key, consumer_secret, access_token, access_secret)
+
+# streamR authentication
+credentials_file <- "my_oauth.Rdata"
+if (file.exists(credentials_file)){
+    load(credentials_file)
+} else {
+	cred <- OAuthFactory$new(consumerKey=consumer_key, consumerSecret=consumer_secret, requestURL=reqURL, accessURL=accessURL, authURL=authURL)
+	cred$handshake(cainfo=system.file("CurlSSL", "cacert.pem", package="RCurl"))
+	save(cred, file=credentials_file)
+}
+```
+
+5. Navigate to the specified link to authorize app.
+
+<center><img
+src="https://i.imgur.com/fY9sXac.png" width="500" height="500">
+</center>
+
+6. Grab the pin number generated and introduce it in the RStudio console. 
+
+After completing these steps, I used the `filterStream()` function to open a connection to Twitter's Streaming API, using the keyword **#NBAFinals**. My initial idea was to capture Twitter data during the entire match, but the resulting file would have been too large to analyze correctly. Instead I preferred to capture Tweets for 45 minutes of the game, obtaining a more manageable file. 
+The capture started on **Thursday, June 7th 01:13 am UCT** and finished on **Thursday, June 7th 01:58 am UCT**.
+
+If you want more information about how to capture Twitter data, check [here](https://www.kaggle.com/xvivancos/tutorial-getting-data-from-twitter)
+
+# **Data dictionary**
+
+All Twitter APIs that return Tweets provide that data encoded using JavaScript Object Notation (JSON). The JSON file include the following objects and attributes:
+
+* **[Tweet](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object)** - Tweets are the basic atomic building block of all things Twitter. The Tweet object has a long list of ‘root-level’ attributes, including fundamental attributes such as `id`, `created_at`, and `text`. Tweet child objects include `user`, `entities`, and `extended_entities.` Tweets that are geo-tagged will have a `place` child object.
+
+    + **[User](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object)** - Contains public Twitter account metadata and describes the author of the Tweet with attributes as `name`, `description`, `followers_count`, `friends_count`, etc.
+
+    + **[Entities](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/entities-object)** - Provide metadata and additional contextual information about content posted on Twitter. The `entities` section provides arrays of common things included in Tweets: hashtags, user mentions, links, stock tickers   (symbols), Twitter polls, and attached media.
+
+    + **[Extended Entities](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/extended-entities-object)** - All Tweets with attached photos, videos and animated GIFs will include an `extended_entities` JSON object.
+
+    + **[Places](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/geo-objects)** - Tweets can be associated with a location, generating a Tweet that has been ‘geo-tagged.’ 
+
+More information [here](https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json). 
+
+# **Loading data** {.tabset}
+
+I have already converted the JSON data into a CSV file in RStudio environment, because I have had many problems with the function `parseTweets()` in this kernel,
+so I preferred to upload the converted file directly.
+
+```{r message=FALSE, warning=FALSE}
+# Load libraries
+library(streamR)
+library(tidyverse)
+library(scales)
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(wordcloud2)
+library(tidytext)
+library(reshape2)
+library(gridExtra)
+library(corrplot)
+library(ggmap)
+library(igraph)
+library(leaflet)
+library(knitr)
+
+# Read the data
+tweets.df <- read.csv("../input/TweetsNBA.csv")
+tweets.df <- tweets.df %>%
+  mutate_at(vars(text), as.character) %>%
+  mutate_at(vars(lang), factor) %>%
+  mutate(lang=recode(lang, en="English", es="Spanish"))
+```
+
+Let’s get an idea of what we’re working with.
+
+## Structure {-}
+```{r}
+# Structure
+str(tweets.df)
+```
+
+## First rows {-}
+```{r}
+# View first 6 rows
+head(tweets.df)
+```
+
+## Last rows {-}
+```{r}
+# View last 6 rows
+tail(tweets.df)
+```
+
+## Summary {-}
+```{r}
+# Summary
+summary(tweets.df)
+```
+
+# **Functions** 
+
+The first function performs cleaning and preprocessing steps to a corpus:
+
+* `removePunctuation()`. Remove all punctuation marks
+* `stripWhitespace()`. Remove excess whitespace
+* `tolower()`. Make all characters lowercase
+* `removeWords()`. Remove some common stop words
+* `removeNumbers()`. Remove numbers 
+
+```{r}
+# Text transformations
+removeURL <- function(x) gsub("http[[:alnum:]]*", "", x)
+cleanCorpus <- function(corpus){
+  
+  corpus.tmp <- tm_map(corpus, removePunctuation)
+  corpus.tmp <- tm_map(corpus.tmp, stripWhitespace)
+  corpus.tmp <- tm_map(corpus.tmp, content_transformer(tolower))
+  corpus.tmp <- tm_map(corpus.tmp, content_transformer(removeURL))
+  v_stopwords <- c(stopwords("english"), stopwords("spanish"),
+                   "thats","weve","hes","theres","ive", "im","will","can","cant",
+                   "dont","youve","us","youre","youll","theyre","whats","didnt")
+  corpus.tmp <- tm_map(corpus.tmp, removeWords, v_stopwords)
+  corpus.tmp <- tm_map(corpus.tmp, removeNumbers)
+  return(corpus.tmp)
+  
+}
+```
+
+The second function constructs the term-document matrix, that describes the frequency of terms that occur in a collection of documents. 
+This matrix has terms in the first column and documents across the top as individual column names.
+
+```{r}
+# Most frequent terms 
+frequentTerms <- function(text){
+  
+  s.cor <- Corpus(VectorSource(text))
+  s.cor.cl <- cleanCorpus(s.cor)
+  s.tdm <- TermDocumentMatrix(s.cor.cl)
+  s.tdm <- removeSparseTerms(s.tdm, 0.999)
+  m <- as.matrix(s.tdm)
+  word_freqs <- sort(rowSums(m), decreasing=TRUE)
+  dm <- data.frame(word=names(word_freqs), freq=word_freqs)
+  return(dm)
+  
+}
+```
+
+The last function plots the degree distribution of a network. 
+
+```{r}
+# Code adapted from Cheng-Jun Wang:
+# http://chengjun.github.io/web_data_analysis/demo2_simulate_networks/
+
+# Write a function to plot the degree distribution
+plot_degree_distribution <- function(graph, mode) {
+  
+  # Calculate degree
+  d <- degree(graph, mode=mode)
+  dd <- degree.distribution(graph, mode=mode, cumulative=FALSE)
+  degree <- 1:max(d)
+  probability <- dd[-1]
+  # Delete blank values
+  nonzero.position <- which(probability!=0)
+  probability <- probability[nonzero.position]
+  degree <- degree[nonzero.position]
+  prob.degree <- data.frame(probability, degree)
+  # Plot
+  ggplot(data=prob.degree, aes(x=degree, y=probability)) + 
+    geom_point() +
+    scale_x_continuous(trans='log10') + 
+    scale_y_continuous(trans='log10') +
+    theme_bw() +
+    labs(x="Degree (log)", y="Probability (log)")
+  
+}
+```
+
+# **Data analysis**
+
+## Tweets per minute
+
+We can see the number of Tweets published per minute. In which moments is there more activity?
+
+```{r fig.align='center', warning=FALSE}
+tweets.df %>%
+  # UCT time in hh:mm format
+  mutate(created_at=substr(created_at, 12, 16)) %>%
+  count(created_at) %>%
+  ggplot(aes(x=as.numeric(as.factor(created_at)), y=n, group=1)) +
+  geom_line(size=1, show.legend=FALSE) +
+  geom_vline(xintercept=7, colour="red") +
+  labs(x="UCT time (hh:mm)", y="Number of Tweets") + 
+  theme_bw() +
+  scale_x_continuous(breaks=c(1,5,10,15,20,
+                              25,30,35,40,45),
+                     labels=c("01:13","01:17","01:22","01:27","01:32",
+                              "01:37","01:42","01:47","01:52","01:57")) 
+```
+
+
+Later we will see the reason for that great increase of Tweets published from 1:17 UCT. 
+
+## Geographic information
+
+We can geolocate the `location` column using the `geocode()` function and place the Tweets on a interactive map. This function only allows 2.500 requests per day,
+so we have to split the variable by groups of 2.500 locations and geolocate each group separately. I have uploaded the file with the first geolocated locations group  (longitude and latitude) and I'll update it with the rest.
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Read the data
+locations <- read.csv("../input/locations.csv")
+
+# Interactive map
+leaflet(data=locations) %>%
+  addTiles() %>%
+  addCircles (lat=locations$lat, lng=locations$lon)
+```
+
+## Most frequent languages
+
+What languages predominate among NBA fans?
+
+```{r fig.align='center'}
+# Most frequent languages
+tweets.df %>%
+  count(lang) %>%
+  arrange(desc(n)) %>%
+  head(n=10) %>%
+  ggplot(aes(x=reorder(lang, -n), y=n)) +
+  geom_bar(stat="identity", fill="lightcyan", colour="black") +
+  labs(x="Language", y="Frequency") + 
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  scale_x_discrete(labels=c("English","Undefined","Spanish","Arabic","Portuguese",
+                            "Turkish","Tagalog","French","Indonesian","NA"))
+```
+
+## Characters and words
+
+In this section we are going to analyze Tweets length for the most common languages (**English** and **Spanish**). What language has the longest Tweets? Let's begin with the number of characters.
+
+```{r fig.align='center', warning=FALSE}
+# Histogram
+tweets.df %>%
+  filter(lang=="English" | lang=="Spanish") %>%
+  ggplot(aes(x=nchar(text), fill=lang)) +
+  geom_histogram(bins=10, show.legend=FALSE) +
+  facet_wrap(~lang) +
+  theme_bw() +
+  labs(x="Characters", y="Frequency") 
+
+# Density plot
+tweets.df %>%
+  filter(lang=="English" | lang=="Spanish") %>%
+  ggplot(aes(x=nchar(text), fill=lang)) +
+  geom_density(alpha=0.5) +
+  xlim(c(0, 150)) +
+  theme_bw() +
+  labs(x="Characters", y="Density") +
+  guides(fill=guide_legend(title="Language"))
+
+# Boxplot
+tweets.df %>%
+  filter(lang=="English" | lang=="Spanish") %>%
+  ggplot(aes(x=lang, y=nchar(text), fill=lang)) +
+  geom_boxplot(show.legend=FALSE) +
+  ylim(c(0, 150)) +
+  theme_bw() +
+  labs(x="Language") +
+  theme(axis.title.y=element_blank())
+```
+
+Let's repeat the analysis, but now with the number of words.
+ 
+```{r fig.align='center', warning=FALSE}
+# Histogram
+tweets.df %>%
+  mutate(words_per_tweet=sapply(strsplit(text, " "), length)) %>%
+  filter(lang=="English" | lang=="Spanish") %>%
+  ggplot(aes(x=words_per_tweet, fill=lang)) +
+  geom_histogram(bins=10, show.legend=FALSE) +
+  xlim(c(0,40)) +
+  theme_bw() +
+  facet_wrap(~lang) +
+  labs(x="Words", y="Frequency")
+
+# Density plot
+tweets.df %>%
+  mutate(words_per_tweet=sapply(strsplit(text, " "), length)) %>%
+  filter(lang=="English" | lang=="Spanish") %>%
+  ggplot(aes(x=words_per_tweet, fill=lang)) +
+  geom_density(alpha=0.5) +
+  xlim(c(0,40)) +
+  theme_bw() +
+  labs(x="Words", y="Density") +
+  guides(fill=guide_legend(title="Language")) 
+
+# Boxplot
+tweets.df %>%
+  mutate(words_per_tweet= sapply(strsplit(text, " "), length)) %>%
+  filter(lang=="English" | lang=="Spanish") %>%
+  ggplot(aes(x=lang, y=words_per_tweet, fill=lang)) +
+  geom_boxplot(show.legend=FALSE) +
+  theme_bw() +
+  labs(x="Language") +
+  theme(axis.title.y=element_blank())
+```
+
+## User attributes
+
+We are going to analize the following user attributes:
+
+* `friends_count`. The number of users this account is following.
+
+* `followers_count`. The number of followers this user currently has.
+
+* `favourites_count`. The number of Tweets this user has liked in the account’s lifetime.
+
+* `statuses_count`. The number of Tweets (including retweets) issued by the user.
+
+```{r fig.align='center', warning=FALSE}
+tweets.df %>%
+  # User attributes
+  select(friends_count, followers_count,
+         favourites_count, statuses_count) %>%
+  # Variables as values of a new column (facet_wrap)
+  gather(Attribute, Num, 1:4) %>%
+  mutate_at(vars(Attribute), factor) %>%
+  ggplot(aes(x=Num, fill=Attribute)) +
+  geom_histogram(bins=20, show.legend=FALSE) +
+  xlim(c(0,2000)) +
+  facet_wrap(~Attribute) +
+  theme_bw() +
+  labs(y="Frequency") +
+  theme(axis.title.x=element_blank())
+```
+
+Let's see the correlation between some user attributes.  
+
+```{r fig.align='center', warning=FALSE}
+# Correlation between number of followers and number of friends
+ggplot(data=tweets.df, aes(x=followers_count, y=friends_count)) +
+  geom_point(alpha=0.1) + 
+  xlim(0, quantile(tweets.df$followers_count, 0.95, na.rm=TRUE)) +
+  ylim(0, quantile(tweets.df$friends_count, 0.95, na.rm=TRUE)) + 
+  geom_smooth(method="lm", color="red") +
+  theme_bw() +
+  labs(x="Number of followers", y="Number of friends") 
+
+# Correlation between number of favourites and number of Tweets
+ggplot(data=tweets.df, aes(x=favourites_count, y=statuses_count)) +
+  geom_point(alpha=0.1) + 
+  xlim(0, quantile(tweets.df$favourites_count, 0.95, na.rm=TRUE)) +
+  ylim(0, quantile(tweets.df$statuses_count, 0.95, na.rm=TRUE)) + 
+  geom_smooth(method="lm", color="red") +
+  theme_bw() +
+  labs(x="Number of favourites", y="Number of Tweets") 
+```
+
+In which year users created their account on Twitter?
+
+```{r fig.align='center'}
+# Years when the user accounts were created
+tweets.df %>%
+  mutate(user_created_at=substr(user_created_at, 27, 30)) %>%
+  count(user_created_at) %>%
+  ggplot(aes(x=user_created_at, y=n, group=1)) +
+  geom_bar(stat="identity", fill="thistle2", colour="black") +
+  theme_bw() +
+  labs(x="Year", y="Frequency") 
+```
+
+We can visualize the most frequent words in the users profile description to know them better: hobbies, professions, concerns, etc. 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Wordcloud 
+dm <- frequentTerms(tweets.df$description)
+wordcloud2(dm, minRotation=-pi/6, maxRotation=-pi/6, rotateRatio=1)
+           
+# Top 20 frequent words in the users profile description 
+ggplot(dm %>% arrange(desc(freq)) %>% head(n=20),
+       aes(x=reorder(word, -freq), y=freq)) +
+  geom_bar(stat="identity", fill="salmon", colour="black") +
+  labs(y="Frequency") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        axis.title.x=element_blank()) 
+```
+
+## Most frequent words
+
+In this section we are going to visualize the most frequent words for each language. First in English, 
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# English Tweets
+en_tweets <- tweets.df %>%
+  filter(lang=="English")
+
+# Wordcloud
+dm2 <- frequentTerms(en_tweets$text)
+wordcloud(dm2$word, dm$freq, min.freq=30, colors=brewer.pal(8,"Dark2"), max.words=200)
+
+# Top 20 frequent words in English 
+ggplot(dm2 %>% arrange(desc(freq)) %>% head(n=20),
+       aes(x=reorder(word, -freq), y=freq)) +
+  geom_bar(stat="identity", fill="salmon", colour="black") +
+  labs(y="Frequency") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        axis.title.x=element_blank()) 
+```
+
+What about the Spanish Tweets?
+
+```{r fig.align='center', message=FALSE, warning=FALSE}
+# Spanish Tweets
+es_tweets <- tweets.df %>%
+  filter(lang=="Spanish")
+
+# Wordcloud
+dm3 <- frequentTerms(es_tweets$text)
+wordcloud(dm3$word, dm3$freq, min.freq=30, colors=brewer.pal(8,"Dark2"))
+
+# Top 20 frequent words in Spanish 
+ggplot(dm3 %>% arrange(desc(freq)) %>% head(n=20),
+       aes(x=reorder(word, -freq), y=freq)) +
+  geom_bar(stat="identity", fill="salmon", colour="black") +
+  labs(y="Frequency") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1),
+        axis.title.x=element_blank()) 
+```
+
+## Sentiment analysis
+
+### `bing` lexicon
+
+The `bing` lexicon (from [Bing Liu and collaborators](https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html) categorizes words in a binary fashion into positive and negative categories.
+
+```{r fig.align='center', message=FALSE}
+# Tokens
+tokens <- tweets.df %>%  
+  unnest_tokens(word, text) %>%
+  select(word)
+
+# Positive and negative words 
+tokens %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort=TRUE) %>%
+  acast(word ~ sentiment, value.var="n", fill=0) %>%
+  comparison.cloud(colors=c("#F8766D", "#00BFC4"), max.words=200)
+```
+
+### `nrc` lexicon
+
+The `nrc` lexicon (from [Saif Mohammad and Peter Turney](http://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm)) categorizes words in a binary fashion into categories of positive, negative, anger, anticipation, disgust, fear, joy, sadness, surprise, and trust.
+
+```{r fig.align='center', message=FALSE}
+# Sentiments and frequency associated with each word  
+sentiments <- tokens %>% 
+  inner_join(get_sentiments("nrc")) %>%
+  count(word, sentiment, sort=TRUE) 
+
+# Frequency of each sentiment
+ggplot(data=sentiments, aes(x=reorder(sentiment, n, sum), y=n)) + 
+geom_bar(stat="identity", aes(fill=sentiment), show.legend=FALSE) +
+labs(x="Sentiment", y="Frequency") +
+theme_bw() +
+coord_flip()
+```
+
+We can use this lexicon to compute the most frequent words for each sentiment.
+
+```{r fig.align='center'}
+# Top 10 frequent terms for each sentiment
+sentiments %>%
+  group_by(sentiment) %>%
+  arrange(desc(n)) %>%
+  slice(1:10) %>%
+  ggplot(aes(x=reorder(word, n), y=n)) +
+  geom_col(aes(fill=sentiment), show.legend=FALSE) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  facet_wrap(~sentiment, scales="free_y") +
+  labs(y="Frequency", x="Words") +
+  coord_flip() 
+```
+
+In the next visualization we can study the frequency of each sentiment over time. For example, if a player fails an easy layup or a dunk, get ready to find hateful comments!
+ 
+```{r  fig.align='center', message=FALSE}
+# Sentiment analysis over time 
+tweets.df %>%  
+  unnest_tokens(word, text) %>%
+  select(word, created_at) %>%
+  inner_join(get_sentiments("nrc")) %>%
+  mutate(created_at=substr(created_at, 12, 16)) %>%
+  count(created_at, sentiment) %>%
+  ggplot(aes(x=as.numeric(as.factor(created_at)), y=as.factor(sentiment))) +
+  geom_tile(aes(fill=n),  show.legend=FALSE) +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(x="UCT time (hh:mm)", y="Sentiment") +   
+  scale_fill_gradient(low="white", high="red") +
+  scale_x_continuous(breaks=c(1,5,10,15,20,
+                              25,30,35,40,45),
+                     labels=c("01:13","01:17","01:22","01:27","01:32",
+                              "01:37","01:42","01:47","01:52","01:57")) +
+  labs(fill="Frequency")
+```
+
+### `AFINN` lexicon
+
+The `AFINN` lexicon (from [Finn Årup Nielsen](http://www2.imm.dtu.dk/pubdb/views/publication_details.php?id=6010)) assigns words with a score that runs between -5 and 5,
+with negative scores indicating negative sentiment and positive scores indicating positive sentiment. Which words have the highest and lowest sentiment score?
+
+```{r fig.align='center', message=FALSE}
+# Positive and negative words 
+top_positive <- tokens %>% 
+  inner_join(get_sentiments("afinn")) %>%
+  count(word, score, sort=TRUE) %>%
+  arrange(desc(score)) %>%
+  head(n=10) %>%
+  ggplot(aes(x=reorder(word, score), y=score)) +
+  geom_bar(stat="identity", fill="#00BFC4", colour="black") +
+  theme_bw() +
+  labs(x="Positive words", y="Score") +
+  coord_flip() 
+
+top_negative <- tokens %>% 
+  inner_join(get_sentiments("afinn")) %>%
+  count(word, score, sort=TRUE) %>%
+  arrange(score) %>%
+  head(n=10) %>%
+  ggplot(aes(x=reorder(word, -score), y=score)) +
+  geom_bar(stat="identity", fill="#F8766D", colour="black") +
+  theme_bw() +
+  labs(x="Negative words", y="Score") +
+  coord_flip() 
+
+grid.arrange(top_positive, top_negative,
+             layout_matrix=cbind(1,2))
+```
+
+We can calculate the contribution of each word multiplying the sentiment score by the number of ocurrences of the word. 
+
+```{r fig.align='center', message=FALSE}
+# Contribution
+tokens %>% 
+  inner_join(get_sentiments("afinn")) %>%
+  count(word, score, sort=TRUE) %>%
+  mutate(contribution=n*score) %>%
+  arrange(desc(abs(contribution))) %>%
+  head(20) %>%
+  ggplot(aes(x=reorder(word, contribution), y=contribution, fill=n*score>0)) +
+  geom_col(show.legend = FALSE) +
+  theme_bw() +
+  xlab("Words") +
+  ylab("Sentiment score * Number of ocurrences") +
+  coord_flip()
+```
+
+## Network analysis
+
+Social network analysis is the process of investigating social structures through the use of networks and graph theory. It characterizes networked structures in terms of nodes and the ties, 
+edges, or links (relationships or interactions) that connect them. In this last chapter we are going to generate and visualize the retweet network graph from the captured Tweets. 
+
+We have to read the JSON file using the `readTweets()` function, because it returns a large list with fields that are not parsed by `parseTweets()`. Retweets can be distinguished from typical Tweets by the existence of a `retweeted_status` attribute.
+This attribute contains a representation of the original Tweet that was retweeted and it can not be obtained by `parseTweets()`, that's why we have to use the `readTweets()` function.
+
+First of all we have to generate the network.
+
+```{r message=FALSE, warning=FALSE}
+# Read the data 
+tweets.list <- readTweets("../input/TweetsNBA.json", verbose=FALSE)
+
+# Extract Tweet ids and retweeted_status ids
+ids <- sapply(tweets.list, function(x) x$id_str)
+ret_ids <- sapply(tweets.list, function(x) if(is.null(x$retweeted_status)) NA else x$retweeted_status$id_str)
+df <- data.frame(ids, ret_ids)
+
+# Create nodes and edges dataframes
+nodes <- unique(append(ids, na.omit(ret_ids)))
+edges <- unique(na.omit(df))
+
+# Create the graph
+g <- graph.data.frame(edges, directed=T, vertices=nodes)
+
+# Write the graph in graphml format
+# graphml_file <- "NBATweets.graphml"
+# write.graph(g, file=graphml_file, format="graphml")
+```
+
+We can categorize the network by defining some metrics and properties:
+
+* Each **node** in the network represents a Tweet.
+ 
+```{r echo=FALSE}
+show(paste("Number of nodes:", vcount(g))) 
+```
+
+* Each link or **edge** between nodes represents a retweet. 
+
+```{r echo=FALSE}
+show(paste("Number of edges:", ecount(g)))
+```
+
+* **Edge density**. Ratio of the number of edges and the number of possible edges.
+
+```{r echo=FALSE}
+show(paste("Edge density:", edge_density(g)))
+```
+
+* **Reciprocity**. Defines the proportion of mutual connections, in a directed graph.
+
+```{r echo=FALSE}
+show(paste("Reciprocity:", reciprocity(g)))
+```
+
+* **Transitivity**. Measures the probability that the adjacent vertices of a vertex are connected.
+
+```{r echo=FALSE}
+show(paste("Transitivity:", transitivity(g)))
+```
+
+* **Degree distribution**. The degree of a node in a network is the number of connections it has to other nodes and the degree distribution is the probability distribution of these degrees over the whole network.
+
+```{r fig.align='center'}
+# Plot the degree distribution
+plot_degree_distribution(g, mode="in")
+```
+
+A large majority of nodes have low degree but a small number, known as "hubs", have high degree. Which Tweets and users correspond to those highest-degree nodes? Let's find out!
+
+```{r}
+# Most relevant nodes
+top_nodes <- sort(degree(g, mode="in"), decreasing=TRUE)[1:10]
+
+# Most relevant users and their Tweets
+rt_sc_name <- sapply(tweets.list, function(x) if(is.null(x$retweeted_status)) NA else x$retweeted_status$user$screen_name)
+rt_text <- sapply(tweets.list, function(x) if(is.null(x$retweeted_status)) NA else x$retweeted_status$text)
+top_users <- rt_sc_name[match(names(top_nodes), ret_ids)]
+top_tweets <- rt_text[match(names(top_nodes), ret_ids)]
+
+# Authors of the most retweeted Tweets 
+top_users
+```
+
+The Tweet with more retweets is...
+
+<center><img
+src="https://i.imgur.com/KZeOHgI.png">
+</center>
+
+The video in the Tweet corresponds to an [awesome play](https://www.youtube.com/watch?v=vO7TO21TsZg) by Lebron James in the first quarter. The increase in Tweets posted around 01:17 UCT is probably due to this play. In addition, from 01:17 UCT we also see an increase in positive sentiments (as we have seen in the sentiment analysis). That Lebron's play has had a lot of influence on social networks!
+
+And the Tweet's author is...
+
+<center><img
+src="https://i.imgur.com/uFVBuIj.png">
+</center>
+
+The official Twitter account of the NBA. 
+
+Finally, we are going to visualize the retweet network using the graphml file generated previously. I don't know how to display correctly large graphs in R, so I'm going to use the software [Gephi](https://gephi.org/).
+
+<center><img
+src="https://i.imgur.com/dMnaXsi.png">
+</center>
+
+Some zoom...
+
+<center><img
+src="https://i.imgur.com/OeAdzdu.png">
+</center>
+
+Another one, 
+
+<center><img
+src="https://i.imgur.com/nk9zeGE.png">
+</center>
+
+<style>
+div.blue { background-color:#E28484; border-radius: 5px; padding: 10px;}
+</style>
+<div class="blue">
+And that's all, thank you for checking out my kernel! I've had a great time doing it and I have learned a lot. Please upvote or comment if you like it! 
+</div>
+<br>
+
+# **Citations for used packages**
+
+Hadley Wickham (2017). tidyverse: Easily Install and Load the 'Tidyverse'. R package version 1.2.1. https://CRAN.R-project.org/package=tidyverse
+
+Hadley Wickham (2017). scales: Scale Functions for Visualization. R package version 0.5.0. https://CRAN.R-project.org/package=scales
+
+Hadley Wickham (2007). Reshaping Data with the reshape Package. Journal of Statistical Software, 21(12), 1-20. URL http://www.jstatsoft.org/v21/i12/.
+
+D. Kahle and H. Wickham. ggmap: Spatial Visualization with ggplot2. The R Journal, 5(1), 144-161. URL http://journal.r-project.org/archive/2013-1/kahle-wickham.pdf
+
+Jeff Gentry (2015). twitteR: R Based Twitter Client. R package version 1.1.9. https://CRAN.R-project.org/package=twitteR
+
+Jeff Gentry and Duncan Temple Lang (2015). ROAuth: R Interface For OAuth. R package version 0.9.6. https://CRAN.R-project.org/package=ROAuth
+
+Pablo Barbera (2018). streamR: Access to Twitter Streaming API via R. R package version 0.4.2. https://CRAN.R-project.org/package=streamR
+
+Ingo Feinerer and Kurt Hornik (2017). tm: Text Mining Package. R package version 0.7-3. https://CRAN.R-project.org/package=tm
+
+Milan Bouchet-Valat (2014). SnowballC: Snowball stemmers based on the C libstemmer UTF-8 library. R package version 0.5.1. https://CRAN.R-project.org/package=SnowballC
+
+Ian Fellows (2014). wordcloud: Word Clouds. R package version 2.5. https://CRAN.R-project.org/package=wordcloud
+
+Dawei Lang (NA). wordcloud2: Create Word Cloud by htmlWidget. R package version 0.2.0. https://github.com/lchiffon/wordcloud2
+
+Silge J, Robinson D (2016). “tidytext: Text Mining and Analysis Using Tidy Data Principles in R.” _JOSS_, *1*(3). doi: 10.21105/joss.00037 (URL:
+http://doi.org/10.21105/joss.00037), <URL: http://dx.doi.org/10.21105/joss.00037>.
+
+Baptiste Auguie (2017). gridExtra: Miscellaneous Functions for "Grid" Graphics. R package version 2.3. https://CRAN.R-project.org/package=gridExtra
+
+Taiyun Wei and Viliam Simko (2017). R package "corrplot": Visualization of a Correlation Matrix (Version 0.84). Available from https://github.com/taiyun/corrplot
+
+Csardi G, Nepusz T: The igraph software package for complex network research, InterJournal, Complex Systems 1695. 2006. http://igraph.org
+
+Joe Cheng, Bhaskar Karambelkar and Yihui Xie (2018). leaflet: Create Interactive Web Maps with the JavaScript 'Leaflet' Library. R package version 2.0.1. https://CRAN.R-project.org/package=leaflet
