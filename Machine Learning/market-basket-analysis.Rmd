@@ -148,12 +148,12 @@ First we need to load some libraries and import our data. We can use the functio
 
 ```{r message=FALSE, warning=FALSE}
 # Load libraries
-library(tidyverse)
-library(arules)
-library(arulesViz)
-library(knitr)
-library(gridExtra)
-library(lubridate)
+library(tidyverse) # Data manipulation
+library(arules) # Mining association rules and frequent itemsets
+library(arulesViz) # Visualization techniques for association rules
+library(knitr) # Dynamic report generation
+library(gridExtra) # Provides a number of user-level functions to work with "grid" graphics
+library(lubridate) # Work with dates and times
 
 # Read the data
 trans <- read.transactions("../input/BreadBasket_DMS.csv", format="single", cols=c(3,4), sep=",", rm.duplicates=TRUE)
@@ -226,7 +226,7 @@ Coffee is the best-selling product by far, followed by bread and tea. Let's disp
 * Transactions per hour 
 
 ```{r message=FALSE, warning=FALSE, fig.align='center'}
-# Load data 
+# Load data to do the visualizations
 trans_csv <- read.csv("../input/BreadBasket_DMS.csv")
 
 # Transactions per month
@@ -456,7 +456,7 @@ plot(rules_sup1_conf50, method="graph")
 We can also change the graph layout.  
 
 ```{r fig.align='center', message=FALSE, warning=FALSE}
-# Graph
+# Graph (circular layout)
 plot(rules_sup1_conf50, method="graph", control=list(layout=igraph::in_circle()))
 ```
 
@@ -486,7 +486,7 @@ That's why we have to carefully select the right values of support and confidenc
 
 ### Graph
 ```{r fig.align='center', message=FALSE, warning=FALSE}
-# Graph
+# Graph (circular layout)
 plot(rules_sup0.5_conf10, method="graph", control=list(layout=igraph::in_circle()))
 ```
   
