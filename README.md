@@ -17,6 +17,7 @@ In this repository you can check my work on Kaggle. You can also review my Kaggl
   - [Discovering Barcelona Part I](https://www.kaggle.com/xvivancos/discovering-barcelona-part-i)
   - [Discovering Barcelona Part II](https://www.kaggle.com/xvivancos/discovering-barcelona-part-ii)
   - [EDA - The Cure discography](https://www.kaggle.com/xvivancos/eda-the-cure-discography)
+  - [EDA - Star Wars data set](https://www.kaggle.com/xvivancos/eda-star-wars-data-set)
   
 - **Machine Learning**
   - [Tutorial: Clustering wines with k-means](https://www.kaggle.com/xvivancos/tutorial-clustering-wines-with-k-means)
