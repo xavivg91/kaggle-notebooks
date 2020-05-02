@@ -144,16 +144,17 @@ If you want more information about these measures, please check [here](https://e
 
 # **Loading Data** {.tabset .tabset-fade .tabset-pills}
 
-First we need to load some libraries and import our data. We can use the function `read.transactions()` from the `arules` package to create a `transactions` object. 
+First we need to load some libraries and import our data. We can use the function [`read.transactions()`](https://www.rdocumentation.org/packages/arules/versions/1.6-5/topics/read.transactions) 
+from the [`arules`](https://cran.r-project.org/web/packages/arules/arules.pdf) package to create a `transactions` object. 
 
 ```{r message=FALSE, warning=FALSE}
 # Load libraries
-library(tidyverse) # Data manipulation
-library(arules) # Mining association rules and frequent itemsets
-library(arulesViz) # Visualization techniques for association rules
-library(knitr) # Dynamic report generation
-library(gridExtra) # Provides a number of user-level functions to work with "grid" graphics
-library(lubridate) # Work with dates and times
+library(tidyverse) # data manipulation
+library(arules) # mining association rules and frequent itemsets
+library(arulesViz) # visualization techniques for association rules
+library(knitr) # dynamic report generation
+library(gridExtra) # provides a number of user-level functions to work with "grid" graphics
+library(lubridate) # work with dates and times
 
 # Read the data
 trans <- read.transactions("../input/BreadBasket_DMS.csv", format="single", cols=c(3,4), sep=",", rm.duplicates=TRUE)
@@ -199,8 +200,8 @@ The data set contains 15.010 observations and the following columns,
 
 # **Data Analysis**
 
-Before applying the Apriori algorithm on the data set, we are going to show some visualizations to learn more about the transactions. For example, we can generate an `itemFrequencyPlot()`
-to create an item Frequency Bar Plot to view the distribution of products. 
+Before applying the Apriori algorithm on the data set, we are going to show some visualizations to learn more about the transactions. For example, we can use the `itemFrequencyPlot()` function
+to create an item frequency bar plot, in order to view the distribution of products. 
 
 ```{r message=FALSE, warning=FALSE, fig.align='center'}
 # Absolute Item Frequency Plot
@@ -208,8 +209,9 @@ itemFrequencyPlot(trans, topN=15, type="absolute", col="wheat2",xlab="Item name"
                   ylab="Frequency (absolute)", main="Absolute Item Frequency Plot")
 ```
  
-The `itemFrequencyPlot()` allows us to show the absolute or relative values. If absolute it will plot numeric frequencies of each item independently. 
-If relative it will plot how many times these items have appeared as compared to others, as it's shown in the following plot. 
+The [`itemFrequencyPlot()`](https://www.rdocumentation.org/packages/arules/versions/1.6-5/topics/itemFrequencyPlot) allows us to show the absolute or relative values.
+If absolute it will plot numeric frequencies of each item independently. If relative it will plot how many times these items have appeared as compared to others,
+as it's shown in the following plot. 
 
 ```{r message=FALSE, warning=FALSE, fig.align='center'}
 # Relative Item Frequency Plot
@@ -217,7 +219,8 @@ itemFrequencyPlot(trans, topN=15, type="relative", col="lightcyan2", xlab="Item 
                   ylab="Frequency (relative)", main="Relative Item Frequency Plot")
 ```
    
-Coffee is the best-selling product by far, followed by bread and tea. Let's display some other visualizations describing the time distribution using the `ggplot()` function. 
+Coffee is the best-selling product by far, followed by bread and tea. Let's display some other visualizations describing the time distribution using the 
+[`ggplot()`](https://www.rdocumentation.org/packages/ggplot2/versions/3.3.0/topics/ggplot) function. 
 
 * Transactions per month
 
@@ -226,10 +229,10 @@ Coffee is the best-selling product by far, followed by bread and tea. Let's disp
 * Transactions per hour 
 
 ```{r message=FALSE, warning=FALSE, fig.align='center'}
-# Load data to do the visualizations
+# Load data 
 trans_csv <- read.csv("../input/BreadBasket_DMS.csv")
 
-# Transactions per month
+# Visualization - Transactions per month
 trans_csv %>%
   mutate(Month=as.factor(month(Date))) %>%
   group_by(Month) %>%
@@ -245,7 +248,7 @@ trans_csv %>%
 The data set includes dates from 30/10/2016 to 09/04/2017, that's why we have so few transactions in October and April. 
 
 ```{r message=FALSE, warning=FALSE, fig.align='center'}
-# Transactions per weekday
+# Visualization - Transactions per weekday
 trans_csv %>%
   mutate(WeekDay=as.factor(weekdays(as.Date(Date)))) %>%
   group_by(WeekDay) %>%
@@ -263,7 +266,7 @@ trans_csv %>%
 As we can see, Saturday is the busiest day in the bakery. Conversely, Wednesday is the day with fewer transactions.
 
 ```{r message=FALSE, warning=FALSE, fig.align='center'}
-# Transactions per hour
+# Visualization - Transactions per hour
 trans_csv %>%
   mutate(Hour=as.factor(hour(hms(Time)))) %>%
   group_by(Hour) %>%
@@ -420,11 +423,12 @@ rules_sup1_conf50 <- apriori(trans, parameter=list(sup=supportLevels[3],
 The generated association rules are the following,
 
 ```{r message=FALSE, warning=FALSE}
-# Association rules
+# Inspect association rules
 inspect(rules_sup1_conf50)
 ```
 
-We can also create an HTML table widget using the `inspectDT()` function from the `aruslesViz` package. Rules can be interactively filtered and sorted.
+We can also create an HTML table widget using the [`inspectDT()`](https://www.rdocumentation.org/packages/arulesViz/versions/1.3-3/topics/inspectDT) function from the `aruslesViz` package.
+Rules can be interactively filtered and sorted.
 
 How do we interpret these rules? 
 
@@ -443,13 +447,13 @@ and a third measure (confidence) represented by the color of the points.
 
 ```{r fig.align='center', message=FALSE, warning=FALSE}
 # Scatter plot
-plot(rules_sup1_conf50, measure=c("support","lift"), shading="confidence")
+plot(rules_sup1_conf50, measure=c("support", "lift"), shading="confidence")
 ```
  
 The following visualization represents the rules as a graph with items as labeled vertices, and rules represented as vertices connected to items using arrows.
 
 ```{r fig.align='center', message=FALSE, warning=FALSE}
-# Graph
+# Graph (default layout)
 plot(rules_sup1_conf50, method="graph")
 ```
  
@@ -468,8 +472,8 @@ In this case it's not a very useful visualization, since we only have coffe on t
 plot(rules_sup1_conf50, method="grouped")
 ```
  
-There's an awesome function called `ruleExplorer()` that explores association rules using interactive manipulations and visualization using shiny. Unfortunately, R Markdown still
-doesn't support shiny app objects. 
+There's an awesome function called [`ruleExplorer()`](https://www.rdocumentation.org/packages/arulesViz/versions/1.3-3/topics/ruleExplorer) that explores 
+association rules using interactive manipulations and visualization using shiny. Unfortunately, R Markdown still doesn't support shiny app objects. 
 
 ## Another execution {.tabset .tabset-fade .tabset-pills}
 
@@ -505,7 +509,7 @@ plot(rules_sup0.5_conf10, method="grouped")
 ### Scatter plot
 ```{r fig.align='center', message=FALSE, warning=FALSE}
 # Scatter plot
-plot(rules_sup0.5_conf10, measure=c("support","lift"), shading="confidence", jitter=0)
+plot(rules_sup0.5_conf10, measure=c("support", "lift"), shading="confidence", jitter=0)
 ```
 
 # **Exercises**
@@ -532,7 +536,8 @@ In this section you can test the concepts learned during this kernel by answerin
 
 * Using the previous data set, execute the Apriori algorithm with a support level of 5% and a confidence level of 10%. Are the rules interesting? Why?
 
-* Prove the functions `ruleExplorer()` and `inspectDT()` from the package `arulesViz` on your RStudio environment. 
+* Prove the functions [`ruleExplorer()`](https://www.rdocumentation.org/packages/arulesViz/versions/1.3-3/topics/ruleExplorer) and 
+[`inspectDT()`](https://www.rdocumentation.org/packages/arulesViz/versions/1.3-3/topics/inspectDT) from the package `arulesViz` on your RStudio environment. 
 
 * What recommendations would you give to the owner of the bakery?
 
@@ -570,5 +575,4 @@ Yihui Xie (2018). knitr: A General-Purpose Package for Dynamic Report Generation
 
 Yihui Xie (2014) knitr: A Comprehensive Tool for Reproducible Research in R. In Victoria Stodden, Friedrich Leisch and Roger D. Peng, editors, Implementing Reproducible Computational Research. Chapman and Hall/CRC. ISBN 978-1466561595
 
-Baptiste Auguie (2017). gridExtra: Miscellaneous Functions for "Grid" Graphics. R package version 2.3.
-https://CRAN.R-project.org/package=gridExtra
+Baptiste Auguie (2017). gridExtra: Miscellaneous Functions for "Grid" Graphics. R package version 2.3. https://CRAN.R-project.org/package=gridExtra  
