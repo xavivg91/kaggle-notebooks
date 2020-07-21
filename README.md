@@ -1,4 +1,4 @@
-# Kaggle Notebooks <img src='kaggle-logo.png' align="right" height="75" /></a>
+# Kaggle Notebooks <img src='kaggle-logo.png' align="right" height="60" /></a>
 
 <!-- badges: start -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
