@@ -1,4 +1,4 @@
-# Kaggle Notebooks
+# Kaggle Notebooks <img src='kaggle-logo.png' align="right" height="75" /></a>
 
 <!-- badges: start -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -8,10 +8,6 @@
 [![GitHub Xavi](https://img.shields.io/github/followers/xavivg91?label=follow&style=social)](https://github.com/xavivg91/)
 [![Twitter Follow](https://img.shields.io/twitter/follow/Xavier91vg.svg?style=social)](https://twitter.com/Xavier91vg)
 <!-- badges: end -->
-
-<p align="center">
-<img src='kaggle-logo.png' height="125" /></a>
-</p>
 
 [Kaggle](https://www.kaggle.com/) is a platform for predictive modelling and analytics competitions in which statisticians and data miners compete to produce the
 best models for predicting and describing the datasets uploaded by companies and users.
