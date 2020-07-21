@@ -4,6 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/dwyl/esta/issues)
 [![HitCount](http://hits.dwyl.com/xavivg91/kaggle-notebooks.svg)](http://hits.dwyl.com/xavivg91/kaggle-notebooks)
+
+[![GitHub Xavi](https://img.shields.io/github/followers/xavivg91?label=follow&style=social)](https://github.com/xavivg91/)
+[![Twitter Follow](https://img.shields.io/twitter/follow/Xavier91vg.svg?style=social)](https://twitter.com/Xavier91vg)
 <!-- badges: end -->
 
 [Kaggle](https://www.kaggle.com/) is a platform for predictive modelling and analytics competitions in which statisticians and data miners compete to produce the
