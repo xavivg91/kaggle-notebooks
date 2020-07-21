@@ -9,6 +9,10 @@
 [![Twitter Follow](https://img.shields.io/twitter/follow/Xavier91vg.svg?style=social)](https://twitter.com/Xavier91vg)
 <!-- badges: end -->
 
+<p align="center">
+<img src='kaggle-logo.png' height="125" /></a>
+</p>
+
 [Kaggle](https://www.kaggle.com/) is a platform for predictive modelling and analytics competitions in which statisticians and data miners compete to produce the
 best models for predicting and describing the datasets uploaded by companies and users.
 
