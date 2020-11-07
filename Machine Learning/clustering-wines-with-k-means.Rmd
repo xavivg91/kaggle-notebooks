@@ -275,7 +275,7 @@ In this entry we have learned about the k-means algorithm, including the data no
 
 It has been a pleasure to make this post, I have learned a lot! Thank you for reading and if you like it, please upvote it.
 
-# **References**
+# **Citations for used packages**
 
 Dua, D. and Karra Taniskidou, E. (2017). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science.
 
