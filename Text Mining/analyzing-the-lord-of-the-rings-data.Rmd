@@ -39,48 +39,57 @@ First we need to load some libraries and read the movie scripts.
 
 ```{r message=FALSE, warning=FALSE}
 # Load libraries
-library(tidyverse)
-library(tm)
-library(wordcloud)
-library(wordcloud2)
-library(tidytext)
-library(reshape2)
-library(RWeka)
-library(knitr)
-library(gridExtra)
-library(grid)
-library(magick)
-library(memery)
-library(ggimage)
-library(igraph)
-library(ggraph)
+install.packages("RWeka") # install RWeka package
+install.packages("memery") # install memery package
+install.packages("ggimage") # install ggimage package
+install.packages("magick")  # install magick package
+library(tidyverse) # data manipulation
+library(tm) # text mining
+library(wordcloud) # word cloud generator
+library(wordcloud2) # word cloud generator
+library(tidytext) # text mining for word processing and sentiment analysis
+library(reshape2) # reshapes a data frame
+library(RWeka) # data mining tasks
+library(knitr) # dynamic report generation
+library(gridExtra) # miscellaneous Functions for "Grid" Graphics
+library(grid) # add Grid to a Plot
+library(magick) # advanced Image-Processing
+library(memery) # used for generating internet memes suited specifically to data analysts
+library(ggimage) # supports image files and graphic objects to be visualized in 'ggplot2'
+library(igraph) # creating and manipulating graphs and analyzing networks
+library(ggraph) # graphs and Networks
 
 # Read the data 
 scripts <- read.csv("../input/lord-of-the-rings-data/lotr_scripts.csv", sep=",")
+
+# Read the Lexicons (for sentiment classification)
+bing <- read_csv("../input/bing-nrc-afinn-lexicons/Bing.csv")
+nrc <- read_csv("../input/bing-nrc-afinn-lexicons/NRC.csv")
+afinn <- read_csv("../input/bing-nrc-afinn-lexicons/Afinn.csv")
 ```
 
 Let's get an idea of what we're working with. One column describes the character name and the other column is a specific sentence from the entire Lord of the Rings dialog.
 
 ## First 10 rows 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # First 10 rows 
 kable(head(scripts))
 ```
 
 ## Last 10 rows 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Last 10 rows 
 kable(tail(scripts))
 ```
 
 ## Summary 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Summary
 kable(summary(scripts))
 ```
 
 ## Structure
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Structure 
 str(scripts)
 ```
@@ -95,7 +104,7 @@ In this section we are going to define functions to carry out some text mining t
 * `removeWords()`. Remove some common English stop words ("I", "she'll", "the", etc.)
 * `removeNumbers()`. Remove numbers 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Text transformations
 cleanCorpus <- function(corpus){
 
@@ -114,7 +123,7 @@ cleanCorpus <- function(corpus){
 
 The second function constructs the term-document matrix, that describes the frequency of terms that occur in a collection of documents. This matrix has terms in the first column and documents across the top as individual column names.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Most frequent terms 
 frequentTerms <- function(text){
 
@@ -132,7 +141,7 @@ frequentTerms <- function(text){
 
 The next functions extract bigrams and trigams using the `NGramTokenizer()` function from the package `RWeka`. 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Define bigram tokenizer 
 tokenizer2  <- function(x){
 
@@ -182,7 +191,7 @@ frequentTrigrams <- function(text){
 
 What are the characters with the most lines of dialogue of the trilogy? Let's plot some bar charts to discover it. 
 
-```{r fig.align='center'}
+```{r fig.align='center', message=FALSE, warning=FALSE}
 # Top 15 characters with more dialogues (absolute values)
 scripts %>% 
   count(char) %>%
@@ -206,7 +215,7 @@ grid.raster(image, x=0.9, y=0.25, height=0.25)
 
 It seems that the ring bearer and his best friend are the most talkative characters. We can do the same graph using the relative values instead of the absolutes, comparing to the total lines of dialogue (2.390). 
 
-```{r fig.align='center'}
+```{r fig.align='center', message=FALSE, warning=FALSE}
 # Top 15 characters with more dialogues (relative values)
 scripts %>% 
   count(char) %>%
@@ -232,7 +241,7 @@ grid.raster(image, x=0.85, y=0.26, height=0.34)
 
 We can also compare the contribution of each character for each movie. Let's consider only the characters with the most lines of dialogue. 
 
-```{r fig.align='center'}
+```{r fig.align='center', message=FALSE, warning=FALSE}
 # Lines of dialogue per character 
 plot1 <- scripts %>%
   filter(char %in% c("FRODO", "SAM", "GANDALF", "ARAGORN", "PIPPIN",
@@ -270,7 +279,7 @@ The second chapter of the trilogy (The Two Towers) is the movie with the most di
 
 Let’s address the topic of opinion mining or sentiment analysis. We can use the tools of text mining to approach the emotional content of text programmatically.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Transform the text to a tidy data structure with one token per row
 tokens <- scripts %>%  
   mutate(dialogue=as.character(scripts$dialog)) %>%
@@ -280,7 +289,7 @@ tokens <- scripts %>%
 First we are going to use the general-purpose lexicon `bing`, from [Bing Liu and collaborators](https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html). 
 The `bing` lexicon categorizes words in a binary fashion into positive and negative categories. We can use the function `comparison.cloud()` to visualize the words. 
 
-```{r message=FALSE, fig.align='center'}
+```{r message=FALSE, warning=FALSE, fig.align='center'}
 # Positive and negative words
 tokens %>%
   inner_join(get_sentiments("bing")) %>%
@@ -291,10 +300,10 @@ tokens %>%
 
 The `nrc` lexicon (from [Saif Mohammad and Peter Turney](http://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm)) categorizes words in a binary fashion into categories of positive, negative, anger, anticipation, disgust, fear, joy, sadness, surprise, and trust. Let's discover the most predominant sentiments during the trilogy.
 
-```{r message=FALSE, fig.align='center'}
+```{r message=FALSE, warning=FALSE, fig.align='center'}
 # Frequency associated with each sentiment  
 sentiments <- tokens %>% 
-  inner_join(get_sentiments("nrc")) %>%
+  inner_join(nrc, "word") %>%
   count(sentiment, sort=TRUE) 
 
 # Visualization
@@ -315,23 +324,23 @@ grid.raster(image, x=0.85, y=0.28, height=0.34)
 
 Apart from the positive and negative words, there's so much fear in this trilogy! Fortunately, the trust sentiment also stands out. It's possible that this feeling comes from the confidence of the characters towards Frodo and his mission to destroy the ring. We can expand the analysis and study the feelings for each film of the trilogy.
 
-```{r message=FALSE, fig.align='center'}
+```{r message=FALSE, warning=FALSE, fig.align='center'}
 # Sentiment Analysis - The Fellowship of the Ring 
 sentiments1 <- tokens %>%
   filter(movie=="The Fellowship of the Ring ") %>%
-  inner_join(get_sentiments("nrc")) %>%
+  inner_join(nrc, "word") %>%
   count(sentiment, sort=TRUE) 
 
 # Sentiment Analysis - The Two Towers 
 sentiments2 <- tokens %>%
   filter(movie=="The Two Towers ") %>%
-  inner_join(get_sentiments("nrc")) %>%
+  inner_join(nrc, "word") %>%
   count(sentiment, sort=TRUE) 
 
 # Sentiment Analysis - The Return of the King 
 sentiments3 <- tokens %>%
   filter(movie=="The Return of the King ") %>%
-  inner_join(get_sentiments("nrc")) %>%
+  inner_join(nrc, "word") %>%
   count(sentiment, sort=TRUE) 
 
 # Data frame 
@@ -360,11 +369,11 @@ grid.raster(image, x=0.6, y=0.28, height=0.34)
 We can discover something curious with this visualization. The Two Towers is the movie with the most dialogues (as we saw in the previous plot), but not the one that has more associated sentiments. 
 Maybe it's because The Two Towers is a movie with more action. We can also use this lexicon to compute the most frequent words for each sentiment.
 
-```{r message=FALSE, fig.align='center'}
+```{r message=FALSE, warning=FALSE, fig.align='center'}
 # Top 10 frequent terms for each sentiment
  tokens %>% 
-  inner_join(get_sentiments("nrc")) %>%
-  count(sentiment, word, sort=TRUE) %>%
+  inner_join(nrc, "word") %>%
+  count(sentiment, word, sort=T) %>%
   group_by(sentiment) %>%
   arrange(desc(n)) %>%
   slice(1:10) %>%
@@ -384,12 +393,12 @@ grid.raster(image, x=0.78, y=0.2, height=0.15)
 
 So much death in this trilogy! The word 'death' is the most frequent in up to three sentiments (anger, fear and sadness) and also appears in other categories (disgust, negative and surprise). Let's perform a sentiment analysis for each character. 
 
-```{r message=FALSE, fig.align='center'}
+```{r message=FALSE, warning=FALSE, fig.align='center'}
 # Sentiment Analysis for the Top 10 characters with more dialogues
 tokens %>%
   filter(char %in% c("FRODO","SAM","GANDALF","ARAGORN","PIPPIN",
                      "MERRY","GOLLUM","GIMLI","THEODEN","FARAMIR")) %>%
-  inner_join(get_sentiments("nrc")) %>%
+  inner_join(nrc, "word") %>%
   count(char, sentiment, sort=TRUE) %>%
   ggplot(aes(x=sentiment, y=n)) +
   geom_col(aes(fill=sentiment), show.legend=FALSE) +
@@ -407,12 +416,12 @@ grid.raster(image, x=0.78, y=0.2, height=0.15)
 Finally, we are going to use the `AFINN` lexicon, from [Finn Årup Nielsen](http://www2.imm.dtu.dk/pubdb/views/publication_details.php?id=6010). 
 This lexicon assigns words with a score that runs between -5 and 5, with negative scores indicating negative sentiment and positive scores indicating positive sentiment. Let's see the word distribution according to the `AFINN` lexicon.  
 
-```{r message=FALSE, fig.align='center', fig.height=10, fig.width=10}
+```{r message=FALSE, warning=FALSE, fig.align='center', fig.height=10, fig.width=10}
 # Word distribution according to the AFINN lexicon
 plot <- tokens %>% 
-  inner_join(get_sentiments("afinn")) %>%
-  count(score, sort=TRUE) %>%
-  ggplot(aes(x=score, y=n)) +
+  inner_join(afinn, "word") %>% 
+  count(value, sort=T) %>%
+  ggplot(aes(x=value, y=n)) +
   geom_bar(stat="identity", aes(fill=n), show.legend=FALSE, width=0.5) +
   geom_label(aes(label=n)) +
   scale_fill_gradient(low="thistle1", high="thistle4") +
@@ -437,15 +446,15 @@ plot(meme)
 
 It's curious, because using the `nrc` lexicon we get more positive than negative words. However, using the `AFINN` lexicon happens the opposite. We should look at what words contribute the most to positive and negative sentiments, multiplying the sentiment score by the number of ocurrences.
 
-```{r message=FALSE, fig.align='center', fig.height=7, fig.width=7}
+```{r message=FALSE, warning=FALSE, fig.align='center', fig.height=7, fig.width=7}
 # Contribution 
 plot <- tokens %>% 
-  inner_join(get_sentiments("afinn")) %>%
-  count(word, score, sort=TRUE) %>%
-  mutate(contribution=n*score) %>%
+  inner_join(afinn, "word") %>% 
+  count(word, value, sort=T) %>% 
+  mutate(contribution=n*value) %>%
   arrange(desc(abs(contribution))) %>%
   head(20) %>%
-  ggplot(aes(x=reorder(word, contribution), y=contribution, fill=n*score>0)) +
+  ggplot(aes(x=reorder(word, contribution), y=contribution, fill=n*value>0)) +
   geom_col(show.legend=FALSE) +
   labs(x="Words", y="Sentiment score * Number of ocurrences") +
   coord_flip() +
@@ -478,7 +487,7 @@ What's a bigram? It's a sequence of two adjacent elements from a string of token
 
 ### The Fellowship of the Ring
 
-```{r fig.align='center', warning=FALSE, echo=TRUE, results='hide'}
+```{r fig.align='center', message=FALSE, warning=FALSE, echo=TRUE, results='hide'}
 # wordcloud2 library
 # library(devtools)
 # devtools::install_github("lchiffon/wordcloud2")
@@ -496,7 +505,7 @@ wordcloud2(frequentTerms(iconv(scripts1$dialog, from="UTF-8", to="ASCII//TRANSLI
 src="https://i.imgur.com/tt5qAng.png">
 </center>
 
-```{r fig.align='center'}
+```{r fig.align='center', message=FALSE, warning=FALSE}
 # Bigrams - The Fellowship of the Ring
 bigrams1 <- frequentBigrams(iconv(scripts1$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
 
@@ -525,7 +534,7 @@ grid.arrange(plot1, plot2, ncol=2, top="Bigrams and Trigrams - The Fellowship of
 
 ### The Two Towers
 
-```{r warning=FALSE, fig.align='center', echo=TRUE, results='hide'}
+```{r message=FALSE, warning=FALSE, fig.align='center', echo=TRUE, results='hide'}
 # Scripts - The Two Towers
 scripts2 <- scripts %>%
   filter(movie=="The Two Towers ")
@@ -539,7 +548,7 @@ wordcloud2(frequentTerms(iconv(scripts2$dialog, from="UTF-8", to="ASCII//TRANSLI
 src="https://i.imgur.com/bi8aRv3.png">
 </center>
 
-```{r fig.align='center'}
+```{r fig.align='center', message=FALSE, warning=FALSE}
 # Bigrams - The Two Towers
 bigrams2 <- frequentBigrams(iconv(scripts2$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
 
@@ -570,7 +579,7 @@ grid.arrange(plot1, plot2, ncol=2, top="Bigrams and Trigrams - The Two Towers")
 
 ### The Return of the King
 
-```{r warning=FALSE, fig.align='center', echo=TRUE, results='hide'}
+```{r message=FALSE, warning=FALSE, fig.align='center', echo=TRUE, results='hide'}
 # Scripts - The Return of the King
 scripts3 <- scripts %>%
   filter(movie=="The Return of the King ")
@@ -584,7 +593,7 @@ wordcloud2(frequentTerms(iconv(scripts3$dialog, from="UTF-8", to="ASCII//TRANSLI
 src="https://i.imgur.com/CY1KBkp.png">
 </center>
 
-```{r fig.align='center'}
+```{r fig.align='center', message=FALSE, warning=FALSE}
 # Bigrams - The Return of the King
 bigrams3 <- frequentBigrams(iconv(scripts3$dialog, from="UTF-8", to="ASCII//TRANSLIT"))[1:10,]
 
@@ -617,7 +626,7 @@ grid.arrange(plot1, plot2, ncol=2, top="Bigrams and Trigrams - The Return of the
 
 We may be interested in visualizing all of the relationships among words simultaneously. As one common visualization, we can arrange the words into a network. Let's plot the bigrams of the trilogy!
 
-```{r fig.align='center'}
+```{r fig.align='center', message=FALSE, warning=FALSE}
 # Bigrams of the trilogy
 bigrams <- frequentBigrams(iconv(scripts$dialog, from="UTF-8", to="ASCII//TRANSLIT"))
 
@@ -724,7 +733,7 @@ Let's analize the other data set containing information about the characters of 
 
 First we need to read the characters data set.  
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Read the data 
 characters <- read.csv("../input/lord-of-the-rings-data/lotr_characters.csv", sep=",")
 ```
@@ -732,25 +741,25 @@ characters <- read.csv("../input/lord-of-the-rings-data/lotr_characters.csv", se
 Let's get an idea of what we're working with. The data set has 911 rows and 9 columns with the following attributes: birth, death, gender, hair, height, name, race, realm and spouse. 
 
 ### First 10 rows 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # First 10 rows 
 kable(head(characters))
 ```
 
 ### Last 10 rows 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Last 10 rows 
 kable(tail(characters))
 ```
 
 ### Summary 
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Summary
 kable(summary(characters))
 ```
 
 ### Structure
-```{r}
+```{r message=FALSE, warning=FALSE}
 # Structure 
 str(characters)
 ```
@@ -925,6 +934,4 @@ Guangchuang Yu (2018). ggimage: Use Image in 'ggplot2'. R package version 0.1.7.
 
 Csardi G, Nepusz T: The igraph software package for complex network research, InterJournal, Complex Systems 1695. 2006.
 http://igraph.org
-
-Thomas Lin Pedersen (2018). ggraph: An Implementation of Grammar of Graphics for Graphs and Networks. R package version 1.0.2.
-https://CRAN.R-project.org/package=ggraph
+                   
